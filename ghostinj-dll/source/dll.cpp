@@ -7,7 +7,7 @@
 #include <tier1/interface.h>
 
 // Realized after adding windows support that usegh was linux only... well just in case for the future I guess... :sob:
-#ifdef WIN32
+#ifdef SYSTEM_WINDOWS
 #include <Windows.h>
 #undef GetObject
 #undef GetClassName
@@ -57,10 +57,10 @@ void Load()
 
 		printf( "Found and loaded filesystem_stdio_new%s\n", DLL_EXTENSION );
 		SourceSDK::FactoryLoader dedicated_loader( "dedicated" );
-		void* CreateInterfaceFn = symfinder.Resolve( dedicated_loader.GetModule(), CreateInterfaceSym.name.c_str(), CreateInterfaceSym.length );
-		if ( CreateInterfaceFn )
+		void* CreateInterfaceFnAddr = symfinder.Resolve( dedicated_loader.GetModule(), CreateInterfaceSym.name.c_str(), CreateInterfaceSym.length );
+		if ( CreateInterfaceFnAddr )
 		{
-			detour_CreateInterface.Create( CreateInterfaceFn, CreateInterface );
+			detour_CreateInterface.Create( CreateInterfaceFnAddr, (void*)CreateInterface );
 			if ( detour_CreateInterface.IsValid() )
 				detour_CreateInterface.Enable();
 			else
@@ -93,7 +93,7 @@ void Unload()
 	printf( "--- FileSystemOverride-GhostInj unloaded ---\n" );
 }
 
-#if SYSTEM_WINDOWS
+#ifdef SYSTEM_WINDOWS
 #include <windows.h>
 BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
 {
