@@ -33,6 +33,8 @@ if DEVELOPMENT then
 end
 include(rootDir .. "overrides.lua")
 
+include(sourcePath .. "bootil/premake5.lua")
+
 --[[
 	Project setup
 	We MUST use abi as else many GMod structs do not match!
@@ -63,9 +65,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 		IncludeSteamAPI()
 		--IncludeDetouring()
 		--IncludeScanning()
-		
-		-- ToDo: Backport from HolyLib
-		--IncludeBootil()
+		IncludeBootil()
 
 		if DEDICATED then
 			defines("SWDS=1")
