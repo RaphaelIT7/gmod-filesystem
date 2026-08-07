@@ -2474,7 +2474,7 @@ void CBaseFileSystem::Close( FileHandle_t file )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CBaseFileSystem::Seek( FileHandle_t file, long long pos, FileSystemSeek_t whence )
+void CBaseFileSystem::Seek( FileHandle_t file, int64 pos, FileSystemSeek_t whence )
 {
 	tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s (pos=%d, whence=%d)", __FUNCTION__, pos, whence );
 

@@ -64,6 +64,9 @@
 #include "vpklib/packedstore.h"
 #endif
 
+// GMOD
+#include "garrysmod/AddonFileHandle.h"
+
 #include "tier0/memdbgon.h"
 
 // dimhotepus: Moved to filesystem.h
@@ -72,6 +75,46 @@
 // #elif defined(POSIX)
 // #define PATHSEPARATOR(c) ((c) == '/')
 // #endif	//_WIN32
+
+// GMod - RaphaelIT7:
+// We can mostly guess the IDs from https://github.com/RaphaelIT7/gmod-build-checker-results/blob/dev/searchpaths.json
+// ::NewSearchPath only accepts bits 1-7 BUT inside CSearchPath it's stored as an int. Fun!
+// Credits: This definition originally is from: https://github.com/danielga/sourcesdk-minimal/blob/master/public/filesystem_base.h#L50-L66
+enum CPathPriorityGroup_t
+{
+	// RaphaelIT7:
+	// This one means it's an SearchPath created by the engine that was given no specific CPathPriorityGroup_t
+	// The engine will change the group to then be GN_ENGINECORE (which is the default)
+	// So GN_UNSET is simply a placeholder that actually never ends up stored in CSearchPath::m_PriorityGroupID
+	GN_UNSET = 0, // Named GN_DEFAULT in the sourcesdk-minimal yet it really isn't a default.
+	GN_ENGINECORE,
+	// Lua folders (mounted to lsv & lsc & LuaMenu)
+	GN_LUA,
+	// Map content (mounted to only GAME)
+	// This is only the current maps/somemap.bsp
+	GN_MAP,
+	// Legacy addons (mounted to GAME & thirdparty)
+	GN_ADDONCONTENT,
+	// Gamemode content (mounted to GAME & thirdparty)
+	GN_GMCONTENT,
+	// GMod Content
+	// -> workshop/ is a imaginary folder for the addonsystem (mounted to GAME, workshop & thirdparty)
+	// -> garrysmod.vpk (mounted to MOD, GAME, garrysmod)
+	// -> garrysmod/ (mounted to MOD, MOD_WRITE, DEFAULT_WRITE_PATH, GAME, GAME_WRITE, garrysmod)
+	// -> data/ (mounted to only DATA)
+	GN_GMODCORE,
+	GN_CURRENTGAME,
+	// sourceengine/ vpks that aren't content_ (mounted to only GAME)
+	GN_SOURCESDK,
+	GN_BADDONCONTENT,
+	//content_[NAME].vpk like hl2 & cstrike (mounted to GAME & also [GameName/hl2/cstrike]
+	GN_GAMECONTENT,
+	GN_MOUNTCFG,
+	// download/ folder (mounted to GAME & DOWNLOAD)
+	GN_DOWNLOADS,
+	// Fallback vpks (garrysmod/fallbacks.vpk) (mounted to GAME & MOD)
+	GN_FALLBACKS
+};
 
 #define MAX_FILEPATH 512 
 
@@ -118,13 +161,13 @@ public:
 	void	Flush();
 	void	SetBufferSize( int nBytes );
 
-	int		Read( OUT_BYTECAP(nLength) void* pBuffer, int nLength );
-	int		Read( void* pBuffer, int nDestSize, int nLength );
+	int Read( OUT_BYTECAP(nLength) void* pBuffer, int nLength );
+	int Read( void* pBuffer, int nDestSize, int nLength );
 
-	int		Write( IN_BYTECAP(nLength) const void* pBuffer, int nLength );
-	int		Seek( int64 nOffset, int nWhence );
-	int		Tell();
-	unsigned		Size();
+	int Write( IN_BYTECAP(nLength) const void* pBuffer, int nLength );
+	unsigned int Seek( int64 nOffset, int nWhence );
+	unsigned int Tell();
+	unsigned int Size();
 
 	int64 AbsoluteBaseOffset();
 	bool	EndOfFile();
@@ -146,6 +189,8 @@ public:
 #if defined( SUPPORT_PACKED_STORE )
 	CPackedStoreFileHandle m_VPKHandle;
 #endif
+	// GMOD
+	Addon::FileHandle* m_pAddonFileHandle;
 	int64				m_nLength;
 	FileType_t			m_type;
 	FILE				*m_pFile;
@@ -240,7 +285,7 @@ public:
 	FileHandle_t		OpenEx( const char *pFileName, const char *pOptions, unsigned flags = 0, const char *pathID = 0, char **ppszResolvedFilename = NULL ) override;
 	void				Close( FileHandle_t ) override;
 	// GMOD - pos is a int64/long long
-	void				Seek( FileHandle_t file, long long pos, FileSystemSeek_t method ) override;
+	void				Seek( FileHandle_t file, int64 pos, FileSystemSeek_t method ) override;
 	unsigned int		Tell( FileHandle_t file ) override;
 	unsigned int		Size( FileHandle_t file ) override;
 	unsigned int		Size( const char *pFileName, const char *pPathID ) override;
@@ -514,12 +559,25 @@ public:
 
 		int					m_storeId;
 
+		// GMOD - RaphaelIT7:
+		// This influences how the searchpath is added in CBaseFileSystem::NewSearchPath (Also one of GMod's custom functions)
+		// GMod uses CPathPriorityGroup_t as a priority system for inserts
+		// So if you want to insert a new path using PATH_ADD_TO_HEAD then if you for example use GN_LUA
+		// then it's added after GN_ENGINECORE but before the first GN_LUA
+		// Same goes for using PATH_ADD_TO_TAIL
+		// Example call: g_pFullFileSystem->AddSearchPath("garrysmod/example/", "EXAMPLE", PATH_ADD_TO_HEAD | GN_LUA);
+		CPathPriorityGroup_t	m_PriorityGroupID;
+
 		// Used to track if its search 
 		CPathIDInfo			*m_pPathIDInfo;
 
 		bool				m_bIsRemotePath;
 
 		bool				m_bIsTrustedForPureServer;
+
+		// GMOD - RaphaelIT7: I assume it's related to https://garry.net/posts/vpk-search-paths
+		// Verify: I have no idea what decides to set it / seems to be some additional flag checked for in ::NewSearchPath?
+		bool				m_bVPKHack;
 
 	private:
 		CUtlSymbol			m_Path;

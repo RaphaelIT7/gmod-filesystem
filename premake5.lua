@@ -86,6 +86,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 		files({
 			rootDir .. "README.md",
 			rootDir .. ".github/workflows/**.yml",
+			sourcePath .. "garrysmod/**"
 		})
 
 		vpaths({
