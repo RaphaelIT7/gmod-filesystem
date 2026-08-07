@@ -5,6 +5,9 @@
 #include "tier1/strtools.h"
 #include "tier1/lzmaDecoder.h"
 #include <cctype>
+#include <limits>
+// RaphaelIT7: Needed for std::size?
+#include <vector>
 
 // RaphaelIT7:
 // These are some backported functions from

@@ -9,7 +9,9 @@
 #include "../utils/lzma/C/LzmaDec.h"
 
 // Ugly define to let us forward declare the anonymous-struct-typedef that is CLzmaDec in the header.
+#ifndef CLzmaDec_t
 #define CLzmaDec_t CLzmaDec
+#endif
 #include "tier1/lzmaDecoder.h"
 
 // memdbgon must be the last include file in a .cpp file!!!

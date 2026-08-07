@@ -66,6 +66,8 @@
 
 // GMOD
 #include "garrysmod/AddonFileHandle.h"
+#include "garrysmod/GModLanguage.h"
+#include <string>
 
 #include "tier0/memdbgon.h"
 
@@ -950,6 +952,8 @@ public: // GMOD
 	virtual void GMOD_FixPathCase( char *, size_t = 0);
 
 private: // GMOD
+	CLanguage m_Language;
+
 	int m_iRefreshCounter = 0;
 	std::string m_strGamePath = "";
 	std::string m_strModPath = "";

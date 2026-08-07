@@ -5534,7 +5534,7 @@ LegacyAddons::System *CBaseFileSystem::LegacyAddons()
 
 CLanguage *CBaseFileSystem::Language()
 {
-	return nullptr;
+	return &m_Language;
 }
 
 void CBaseFileSystem::DoFilesystemRefresh()
@@ -5569,7 +5569,7 @@ static void MountFromScript( const char* scriptName )
 		const char* pszPath = game->GetString( nullptr, "" );
 		g_pBaseFileSystem->MountDirectoryAndVPKs( pszPath );
 
-		g_pBaseFileSystem->Games()->MarkGameAsMounted( game->GetName() );
+		// g_pBaseFileSystem->Games()->MarkGameAsMounted( game->GetName() );
 	}
 }
 
