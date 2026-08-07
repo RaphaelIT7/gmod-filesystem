@@ -682,11 +682,11 @@ public:
 	private:
 		CSearchPathsIterator( const  CSearchPathsIterator & );
 		void operator=(const CSearchPathsIterator &);
-		void CopySearchPaths( const CUtlVector<CSearchPath>	&searchPaths );
+		void CopySearchPaths( const CUtlLinkedList<CSearchPath>	&searchPaths );
 
 		intp						m_iCurrent;
 		CUtlSymbol					m_pathID;
-		CUtlVector<CSearchPath> 	m_SearchPaths;
+		CUtlLinkedList<CSearchPath> 	m_SearchPaths;
 		CSearchPathsVisits			m_visits;
 		CSearchPath					m_EmptySearchPath;
 		CPathIDInfo					m_EmptyPathIDInfo;
@@ -722,7 +722,7 @@ public:
 	CUtlVector< FileSystemLoggingFunc_t > m_LogFuncs;
 
 	CThreadMutex m_SearchPathsMutex;
-	CUtlVector< CSearchPath > m_SearchPaths;
+	CUtlLinkedList< CSearchPath > m_SearchPaths;
 	CUtlVector<CPathIDInfo*> m_PathIDInfos;
 	CUtlLinkedList<FindData_t> m_FindData;
 

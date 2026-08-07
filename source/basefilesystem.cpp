@@ -1504,13 +1504,13 @@ void CBaseFileSystem::RemoveSearchPaths( const char *pathID )
 {
 	AsyncFinishAll();
 
-	intp nCount = m_SearchPaths.Count();
-	for (intp i = nCount - 1; i >= 0; i--)
+	for( int i=m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
 	{
-		if (V_strieq(m_SearchPaths.Element(i).GetPathIDString(), pathID))
-		{
-			m_SearchPaths.FastRemove(i);
-		}
+		int next = m_SearchPaths.Next( i );
+		if ( V_strieq( m_SearchPaths.Element( i ).GetPathIDString(), pathID ) )
+			m_SearchPaths.Remove( i );
+
+		i = next;
 	}
 }
 
@@ -4643,7 +4643,7 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetNext()
 	return nullptr;
 }
 
-void CBaseFileSystem::CSearchPathsIterator::CopySearchPaths( const CUtlVector<CSearchPath>	&searchPaths )
+void CBaseFileSystem::CSearchPathsIterator::CopySearchPaths( const CUtlLinkedList<CSearchPath>	&searchPaths )
 {
 	m_SearchPaths = searchPaths;
 	for ( auto &sp : m_SearchPaths )
@@ -5460,7 +5460,17 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 
 void CBaseFileSystem::RemoveSearchPathsByGroup( int iPriorityGroup )
 {
-	// ToDo
+	AsyncFinishAll();
+
+	iPriorityGroup >>= 1; // RaphaelIT7: IDA shows if (iPriorityGroup >> 1 == pSearchPath->m_PriorityGroupID)
+	for( int i=m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
+	{
+		int next = m_SearchPaths.Next( i );
+		if ( iPriorityGroup == m_SearchPaths.Element( i ).m_PriorityGroupID )
+			m_SearchPaths.Remove( i );
+
+		i = next;
+	}
 }
 
 void CBaseFileSystem::SetGet( IGet* pGet )
@@ -5509,6 +5519,9 @@ void CBaseFileSystem::AddVPKFileFromPath( const char* pPath, const char* pPathID
 	AddVPKFile( pPath, pPathID, addType );
 }
 
+// RaphaelIT7:
+// pszGamePath is the absolute path to GarrysMod/
+// pszModPath is the relative path to the mod dir -> garrysmod/
 void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const char *pszModPath )
 {
 	Msg( "CFileSystem_Stdio::GMOD_SetupDefaultPaths called with %s %s\n", pszGamePath, pszModPath );

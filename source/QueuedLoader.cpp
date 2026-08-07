@@ -793,7 +793,7 @@ void CQueuedLoader::SubmitPendingJobs()
 	m_nSubmitCount++;
 
 	// sort entries
-	CUtlSortVector< FileJob_t*, CFileJobsLessFunc > sortedFiles( (intp)0, 128 );
+	CUtlSortVector< FileJob_t*, CFileJobsLessFunc > sortedFiles( 0, 128 );
 	while ( pNode )
 	{
 		FileJob_t *pFileJob = pNode->elem;

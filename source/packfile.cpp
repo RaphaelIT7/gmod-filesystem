@@ -624,7 +624,7 @@ bool CZipPackFile::Prepare( int64 fileLen, int64 nFileOfs )
 	MEM_ALLOC_CREDIT();
 
 	// read central directory into memory and parse
-	CUtlBuffer zipDirBuff( (intp)0, rec.centralDirectorySize, 0 );
+	CUtlBuffer zipDirBuff( 0, rec.centralDirectorySize, 0 );
 	zipDirBuff.EnsureCapacity( rec.centralDirectorySize );
 	zipDirBuff.ActivateByteSwapping( IsX360() );
 	ReadFromPack( -1, zipDirBuff.Base(), -1, rec.centralDirectorySize, rec.startOfCentralDirOffset );
@@ -804,8 +804,8 @@ static std::atomic<int> sLZMAPackFileHandles( 0 );
 CLZMAZipPackFileHandle::CLZMAZipPackFileHandle( CZipPackFile* pOwner, int64 nBase, unsigned int nOriginalSize, unsigned int nCompressedSize,
                                                 unsigned int nIndex, unsigned int nFilePointer )
 	: CZipPackFileHandle( pOwner, nBase, nCompressedSize, nIndex, nFilePointer ),
-	  m_BackSeekBuffer( (intp)0, PACKFILE_COMPRESSED_FILEHANDLE_SEEK_BUFFER ),
-	  m_ReadBuffer( (intp)0, PACKFILE_COMPRESSED_FILEHANDLE_READ_BUFFER ),
+	  m_BackSeekBuffer( 0, PACKFILE_COMPRESSED_FILEHANDLE_SEEK_BUFFER ),
+	  m_ReadBuffer( 0, PACKFILE_COMPRESSED_FILEHANDLE_READ_BUFFER ),
 	  m_pLZMAStream( NULL ), m_nSeekPosition( 0 ), m_nOriginalSize( nOriginalSize )
 {
 	Reset();
@@ -895,7 +895,7 @@ int CLZMAZipPackFileHandle::Read( void* pBuffer, int nDestSize, int nBytes )
 
 	// If we read less than BackSeekBuffer.Size() bytes, shift the end of the old backseek buffer up
 	int nOldBackSeek = m_BackSeekBuffer.TellPut();
-	int nReuseBackSeek = Max( Min( m_BackSeekBuffer.Size() - nBytesRead, static_cast<intp>(nOldBackSeek) ), static_cast<intp>(0) );
+	int nReuseBackSeek = MAX( MIN( m_BackSeekBuffer.Size() - nBytesRead, static_cast<intp>(nOldBackSeek) ), static_cast<intp>(0) );
 	if ( nReuseBackSeek )
 	{
 		// Shift the reused chunk to the front
@@ -909,7 +909,7 @@ int CLZMAZipPackFileHandle::Read( void* pBuffer, int nDestSize, int nBytes )
 	m_BackSeekBuffer.SeekGet( CUtlBuffer::SEEK_HEAD, nReuseBackSeek );
 
 	// Fill in remainder from what we just read
-	int nReadIntoBackSeek = Min( m_BackSeekBuffer.Size() - nReuseBackSeek, static_cast<intp>(nBytesRead) );
+	int nReadIntoBackSeek = MIN( m_BackSeekBuffer.Size() - nReuseBackSeek, static_cast<intp>(nBytesRead) );
 	m_BackSeekBuffer.Put( (unsigned char *)pBuffer + nBytesRead - nReadIntoBackSeek, nReadIntoBackSeek );
 	m_BackSeekBuffer.SeekGet( CUtlBuffer::SEEK_CURRENT, nReadIntoBackSeek );
 
@@ -1018,7 +1018,7 @@ int CLZMAZipPackFileHandle::FillReadBuffer()
 	// Reset empty read buffer
 	m_ReadBuffer.SeekPut( CUtlBuffer::SEEK_HEAD, 0 );
 	m_ReadBuffer.SeekGet( CUtlBuffer::SEEK_HEAD, 0 );
-	int nRefillSize = Min( static_cast<intp>(nRemainingCompressedBytes), m_ReadBuffer.Size() );
+	int nRefillSize = MIN( static_cast<intp>(nRemainingCompressedBytes), m_ReadBuffer.Size() );
 	int nRefillResult = CZipPackFileHandle::Read( m_ReadBuffer.PeekPut(), m_ReadBuffer.Size(), nRefillSize );
 	AssertMsg( nRefillSize == nRefillResult, "Don't expect to fail to read here" );
 
