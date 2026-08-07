@@ -116,6 +116,12 @@ enum CPathPriorityGroup_t
 	GN_FALLBACKS
 };
 
+// RaphaelIT7: We must shift it to the left by one to respect how GMod does it
+#define PRIORITY_GROUP_HEAD(group) ((int)group<<1)
+#define PRIORITY_GROUP_TAIL(group) (PATH_ADD_TO_TAIL | ((int)group<<1))
+#define PATH_ADD_MASK 0x1
+#define PATH_PRIORITY_MASK 0xFFFFFEFF
+
 #define MAX_FILEPATH 512 
 
 extern CUtlSymbolTableMT g_PathIDTable;
@@ -928,6 +934,7 @@ protected:
 
 public: // GMOD
 	CSearchPath *NewSearchPath( SearchPathAdd_t addType );
+	void MountDirectoryAndVPKs( const char* pszPath );
 
 	virtual void RemoveSearchPathsByGroup( int iPriorityGroup );
 	virtual void SetGet( IGet* pGet );
@@ -944,6 +951,8 @@ public: // GMOD
 
 private: // GMOD
 	int m_iRefreshCounter = 0;
+	std::string m_strGamePath = "";
+	std::string m_strModPath = "";
 };
 
 inline const CUtlSymbol& CBaseFileSystem::CPathIDInfo::GetPathID() const

@@ -37,10 +37,11 @@
 
 // GMOD
 IGet* get = nullptr;
+#include <system_error>
+#include <Bootil/Bootil.h>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-#include <system_error>
 
 
 ConVar fs_report_sync_opens( "fs_report_sync_opens", "0", 0, "0:Off, 1:Blocking only, 2:All" );
@@ -756,7 +757,7 @@ void CBaseFileSystem::AddVPKFile( char const *pPath, const char *pPathID, Search
 	}
 
 	// Crete a search path for this
-	CSearchPath *sp = &m_SearchPaths[ ( addType == PATH_ADD_TO_TAIL ) ? m_SearchPaths.AddToTail() : m_SearchPaths.AddToHead() ];
+	CSearchPath *sp = NewSearchPath( addType ); // GMOD
 	sp->SetPackedStore( pVPK );
 	sp->m_storeId = g_iNextSearchPathID++;
 	sp->SetPath( pathIDSym );
@@ -1012,7 +1013,7 @@ void CBaseFileSystem::AddMapPackFile( const char *pPath, const char *pPathID, Se
 	// Security nightmares already, should not let things explicitly loading from e.g. "MOD" get surprise untrusted
 	// files unless you really really know what you're doing.
 	AssertMsg( V_strieq( pPathID, "GAME" ),
-	           "Mounting map files anywhere besides GAME is asking for pain" );
+			   "Mounting map files anywhere besides GAME is asking for pain" );
 
 	char newPath[ MAX_FILEPATH ];
 	// +2 for '\0' and potential slash added at end.
@@ -1072,6 +1073,8 @@ void CBaseFileSystem::AddMapPackFile( const char *pPath, const char *pPathID, Se
 		}
 	}
 
+	// RaphaelIT7 (ToDo): GMod has the cache/map.pack code in here!
+
 	{
 		FILE *fp = Trace_FOpen( fullpath, "rb", 0, nullptr );
 		if ( !fp )
@@ -1115,17 +1118,18 @@ void CBaseFileSystem::AddMapPackFile( const char *pPath, const char *pPathID, Se
 	
 		if ( pf->Prepare( packfile->filelen, packfile->fileofs ) )
 		{
-			intp nIndex;
-			if ( addType == PATH_ADD_TO_TAIL )
-			{
-				nIndex = m_SearchPaths.AddToTail();	
-			}
-			else
-			{
-				nIndex = m_SearchPaths.AddToHead();	
-			}
-	
-			CSearchPath *sp = &m_SearchPaths[ nIndex ];
+			// GMOD
+			/*
+				 v22 = a4 | 6;
+				if ( (a4 & 0xFFFFFFFE) != 0 )
+				  v22 = a4;
+				v23 = CBaseFileSystem::NewSearchPath(this, v22);
+			*/
+
+			if ( ( addType & ~PATH_ADD_MASK ) == 0 ) // RaphaelIT7: I mean... why not always force GN_MAP?
+				addType = PRIORITY_GROUP_HEAD( GN_MAP );
+
+			CSearchPath *sp = NewSearchPath( addType );
 	
 			sp->SetPackFile( pf );
 			sp->m_storeId = iStoreId;
@@ -1304,27 +1308,18 @@ void CBaseFileSystem::AddSearchPathInternal( const char *pPath, const char *path
 	CUtlSymbol pathIDSym = g_PathIDTable.AddString( pathID );
 	intp c = m_SearchPaths.Count();
 	int id = 0;
-	for ( intp i = 0; i < c; i++ )
+	for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
 	{
-		CSearchPath *pSearchPath = &m_SearchPaths[i];
-		if ( pSearchPath->GetPath() == pathSym && pSearchPath->GetPathID() == pathIDSym )
-		{
-			if ( ( addType == PATH_ADD_TO_HEAD && i == 0 ) || ( addType == PATH_ADD_TO_TAIL ) )
-			{
-				return; // this entry is already at the head
-			}
-			else
-			{
-				m_SearchPaths.Remove(i); // remove it from its current position so we can add it back to the head
-				i--;
-				c--;
-			}
-		}
-		if ( !id && pSearchPath->GetPath() == pathSym )
-		{
-			// get first found - all reference the same store
-			id = pSearchPath->m_storeId;
-		}
+		auto next = m_SearchPaths.Next( i );
+		CSearchPath& searchPath = m_SearchPaths[i];
+		// GMOD - if ( pathSym == searchPath->m_Path.m_Id && searchPath->m_pPathIDInfo->m_PathID.m_Id == pathIDSym.m_Id )
+		if ( searchPath.GetPath() == pathSym && searchPath.GetPathID() == pathIDSym )
+			m_SearchPaths.Remove( i );
+
+		if ( id == 0 && searchPath.GetPath() == pathSym )
+			id = searchPath.m_storeId;
+
+		i = next;
 	}
 
 	if (!id)
@@ -1347,10 +1342,8 @@ void CBaseFileSystem::AddSearchPathInternal( const char *pPath, const char *path
 		Assert( nIndex >= 0 );
 	}
 
-	// Grab last entry and set the path
-	m_SearchPaths.InsertBefore( nIndex );
-
-	CSearchPath *sp = &m_SearchPaths[ nIndex ];
+	// GMOD
+	CSearchPath *sp = NewSearchPath( addType );
 	
 	sp->SetPath( pathSym );
 	sp->m_pPathIDInfo = FindOrAddPathIDInfo( pathIDSym, -1 );
@@ -2610,7 +2603,7 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 #ifdef LINUX
 		char caseFixedName[ MAX_PATH ];
 		if ( findFileInDirCaseInsensitive_safe( pTmpFileName, caseFixedName ) &&
-		     FS_stat( caseFixedName, &buf ) != -1 )
+			 FS_stat( caseFixedName, &buf ) != -1 )
 		{
 			return buf.st_mtime;
 		}
@@ -3721,8 +3714,8 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 {
 	VPROF_BUDGET( "CBaseFileSystem::FindFirst", VPROF_BUDGETGROUP_OTHER_FILESYSTEM );
 
- 	Assert(pWildCardT);
- 	Assert(pHandle);
+	Assert(pWildCardT);
+	Assert(pHandle);
 
 	auto hTmpHandle = m_FindData.AddToTail();
 	FindData_t *pFindData = &m_FindData[hTmpHandle];
@@ -3816,7 +3809,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 	}
 
 	// We have a result from the filesystem
- 	if( pFindData->findHandle != INVALID_HANDLE_VALUE )
+	if( pFindData->findHandle != INVALID_HANDLE_VALUE )
 	{
 		// Remember that we visited this file already.
 		pFindData->m_VisitedFiles.Insert( pFindData->findData.cFileName, 0 );
@@ -4067,7 +4060,7 @@ bool CBaseFileSystem::FixUpPath( const char *pFileName, OUT_Z_CAP(sizeFixedUpFil
 #ifdef NEVER // Useful if you're trying to see why your file may not be found (if you have a mixed case file)
 	if (strncmp(pFixedUpFileName, pFileName, 256))
 	{
-	    printf("FixUpPath->Converting %s to %s\n",pFileName, pFixedUpFileName);
+		printf("FixUpPath->Converting %s to %s\n",pFileName, pFixedUpFileName);
 	}
 #endif // NEVER
 	return true;
@@ -4114,7 +4107,7 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 //		// do legacy behavior to ensure naive callers don't break
 //		pathFilter = FILTER_CULLPACK;
 //	}
-
+	
 
 	CSearchPathsIterator iter( this, &pFileName, pPathID, pathFilter );
 	for ( CSearchPath *pSearchPath = iter.GetFirst(); pSearchPath != nullptr; pSearchPath = iter.GetNext() )
@@ -5453,9 +5446,47 @@ CBaseFileSystem::CFileCacheObject::~CFileCacheObject()
 	GMOD Functions
 */
 
-CBaseFileSystem::CSearchPath *CBaseFileSystem::NewSearchPath( SearchPathAdd_t addType )
+CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t addType )
 {
-	return nullptr;
+	// bit 0 = SearchPathAdd_t (head/tail)
+	// bit 1-7+ = CPathPriorityGroup_t priority group
+	// bit 8 = VPK hack flag?
+
+	const bool bVPKHack = (addType >> 8) & 1;
+	CPathPriorityGroup_t priorityGroup = static_cast<CPathPriorityGroup_t>( ( addType & PATH_PRIORITY_MASK ) >> 1 );
+	if ( priorityGroup == GN_UNSET )
+		priorityGroup = GN_ENGINECORE;
+
+	addType &= PATH_ADD_MASK;
+
+	CSearchPath* result = NULL;
+	FOR_EACH_LL( m_SearchPaths, i )
+	{
+		CSearchPath& searchPath = m_SearchPaths[i];
+		if ( addType == PATH_ADD_TO_HEAD )
+		{
+			if ( priorityGroup >= searchPath.m_PriorityGroupID )
+			{
+				result = &m_SearchPaths[ m_SearchPaths.InsertBefore( i ) ];
+				break;
+			}
+		}
+		else
+		{
+			if ( priorityGroup <= searchPath.m_PriorityGroupID )
+			{
+				result = &m_SearchPaths[ m_SearchPaths.InsertBefore( i ) ];
+				break;
+			}
+		}
+	}
+
+	if ( !result )
+		result = &m_SearchPaths[ m_SearchPaths.AddToTail() ];
+
+	result->m_PriorityGroupID = priorityGroup;
+	result->m_bVPKHack = bVPKHack;
+	return result;
 }
 
 void CBaseFileSystem::RemoveSearchPathsByGroup( int iPriorityGroup )
@@ -5519,12 +5550,225 @@ void CBaseFileSystem::AddVPKFileFromPath( const char* pPath, const char* pPathID
 	AddVPKFile( pPath, pPathID, addType );
 }
 
+static void MountFromScript( const char* scriptName )
+{
+	KeyValues* kv = new KeyValues( scriptName );
+	RunCodeAtScopeExit( kv->deleteThis(); );
+
+	if ( !kv->LoadFromFile( g_pBaseFileSystem, scriptName, "MOD" ) )
+	{
+		Warning( "Failed to load keyvalues file %s!\n", scriptName );
+		return;
+	}
+
+	for ( KeyValues* game = kv->GetFirstSubKey(); game; game = game->GetNextKey() )
+	{
+		const char* pszPath = game->GetString( nullptr, "" );
+		g_pBaseFileSystem->MountDirectoryAndVPKs( pszPath );
+
+		g_pBaseFileSystem->Games()->MarkGameAsMounted( game->GetName() );
+	}
+}
+
+static ConVar fs_tellmeyoursecrets( "fs_tellmeyoursecrets", "0", 0, "- 0:Off, 1:On, 2:Extra" );
+void CBaseFileSystem::MountDirectoryAndVPKs( const char* pszPath )
+{
+	if ( !Bootil::File::IsFolder( pszPath ) )
+		return;
+
+	char szFixedPath[MAX_PATH];
+	V_strncpy( szFixedPath, pszPath, sizeof( szFixedPath ) );
+	V_FixSlashes( szFixedPath, '/');
+	std::string strPath = szFixedPath;
+
+	std::string strVPKSearch = strPath;
+	if ( !strVPKSearch.empty() && strVPKSearch.back() != '/' )
+		strVPKSearch += '/';
+
+	strVPKSearch += "*.vpk";
+
+	FileFindHandle_t hFindHandle = NULL;
+	if ( fs_tellmeyoursecrets.GetInt() )
+		Msg( "mount.cfg looking in '%s'...\n", strVPKSearch.c_str() );
+
+	const char* pszFile = g_pFullFileSystem->FindFirst( strVPKSearch.c_str(), &hFindHandle );
+	while ( pszFile )
+	{
+		if ( pszFile[0] != '.' )
+		{
+			std::string strFilename = pszFile;
+			if ( Bootil::String::Test::EndsWith( strFilename, "_000.vpk" ) )
+			{
+				std::string strFullPath = pszFile;
+				if ( !strFullPath.empty() && strFullPath.back() != '/' )
+					strFullPath += '/';
+
+				strFullPath += pszFile;
+				if ( fs_tellmeyoursecrets.GetInt() )
+					Msg( "mount.cfg adding '%s'\n", strFullPath.c_str() );
+
+				Bootil::String::Util::FindAndReplace( strFullPath, "_000.vpk", "" );
+				g_pFullFileSystem->AddVPKFileFromPath( strFullPath.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_MOUNTCFG ) );
+			}
+		}
+
+		pszFile = g_pFullFileSystem->FindNext( hFindHandle );
+	}
+
+	if ( hFindHandle )
+		g_pFullFileSystem->FindClose( hFindHandle );
+
+	Msg( "Adding mount.cfg path: '%s'\n", pszPath );
+
+	// Add the actual folder after VPKs
+	g_pFullFileSystem->AddSearchPath( pszPath, "GAME", PRIORITY_GROUP_TAIL( GN_MOUNTCFG ) );
+}
+
+bool GMOD_IsValidPath( const char* s )
+{
+	if ( !s )
+		return false;
+
+	if ( s[0] == '\\' || s[0] == '/' )
+		return false;
+
+	if ( strlen( s ) == 0 )
+		return false;
+
+	if ( strstr( s, "\\\\" ) )
+		return false;
+
+	if ( strchr( s, ':' ) )
+		return false;
+
+	if ( strstr(s, ".." ) )
+		return false;
+
+	if ( strchr( s, '\n' ) )
+		return false;
+
+	if ( strchr( s, '\r' ) )
+		return false;
+
+	if ( strchr( s, '\t' ) )
+		return false;
+
+	if ( strchr( s, '?' ) )
+		return false;
+
+	if ( strchr( s, '|' ) )
+		return false;
+
+	if ( strchr( s, '>' ) )
+		return false;
+
+	if ( strchr( s, '<' ) )
+		return false;
+
+	if ( strchr( s, '"' ) )
+		return false;
+
+	return true;
+}
+
 // RaphaelIT7:
 // pszGamePath is the absolute path to GarrysMod/
 // pszModPath is the relative path to the mod dir -> garrysmod/
 void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const char *pszModPath )
 {
 	Msg( "CFileSystem_Stdio::GMOD_SetupDefaultPaths called with %s %s\n", pszGamePath, pszModPath );
+
+	m_strGamePath = pszGamePath;
+	m_strModPath = pszModPath;
+
+	const bool hasVPKBuild = g_pBaseFileSystem->IsDirectory( "vpk_build", "BASE_PATH" );
+
+	//
+	// Engine
+	//
+	AddSearchPath( ( m_strGamePath + "/garrysmod/bin" ).c_str(), "GAMEBIN", PRIORITY_GROUP_TAIL( GN_ENGINECORE ) );
+	AddSearchPath( ( m_strGamePath + "/bin" ).c_str(), "EXECUTABLE_PATH", PRIORITY_GROUP_TAIL( GN_ENGINECORE ) );
+
+	//
+	// Workshop
+	//
+	AddSearchPath( ( m_strGamePath + "/workshop" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strGamePath + "/workshop" ).c_str(), "workshop", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strGamePath + "/workshop" ).c_str(), "thirdparty", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+
+	//
+	// GMod content
+	//
+	AddVPKFile( ( m_strGamePath + "/workshop/garrysmod.vpk" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddVPKFile( ( m_strGamePath + "/garrysmod.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddVPKFile( ( m_strGamePath + "/garrysmod.vpk" ).c_str(), "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+
+	if (hasVPKBuild)
+	{
+		AddSearchPath( ( m_strGamePath + "/overrides" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+		AddSearchPath( ( m_strGamePath + "/overrides" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+		AddSearchPath( ( m_strGamePath + "/overrides" ).c_str(), "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	}
+
+	//
+	// Main game folder
+	//
+	AddSearchPath( pszGamePath, "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszGamePath, "MOD_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszGamePath, "DEFAULT_WRITE_PATH", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszGamePath, "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszGamePath, "GAME_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszGamePath, "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+
+	MarkPathIDByRequestOnly( "workshop", true );
+	MarkPathIDByRequestOnly( "thirdparty", true );
+	MarkPathIDByRequestOnly( "garrysmod", true );
+
+	//
+	// Source SDK
+	//
+	const std::string sdk = m_strGamePath + "/sourceengine";
+	AddVPKFile( ( sdk + "/hl2_misc.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+	AddVPKFile( ( sdk + "/hl2_sound_misc.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+	AddVPKFile( ( sdk + "/hl2_sound_vo_english.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+	AddVPKFile( ( sdk + "/hl2_textures.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+	AddSearchPath( sdk.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+
+	//
+	// Platform
+	//
+	const std::string platform = m_strGamePath + "/platform";
+	AddVPKFile( ( platform + "/platform_misc.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+	AddSearchPath( platform.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_SOURCESDK ) );
+
+	//
+	// mount.cfg
+	//
+	std::string mountCfg = "cfg/mount.cfg";
+	const char* override = CommandLine()->ParmValue( "-mountcfgfile", "mount.cfg" );
+	if ( GMOD_IsValidPath( override ) )
+		mountCfg = "cfg/" + std::string(override);
+	else
+		::Warning( "Invalid -mountcfgfile path '%s', ignoring...\n", override );
+
+	MountFromScript( mountCfg.c_str() );
+
+	//
+	// Downloads
+	//
+	const std::string downloads = m_strGamePath + "/download";
+	AddSearchPath( downloads.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_DOWNLOADS ) );
+	AddSearchPath( downloads.c_str(), "DOWNLOAD", PRIORITY_GROUP_TAIL( GN_DOWNLOADS ) );
+	AddVPKFile( ( downloads + "/fallbacks.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
+	AddVPKFile( ( downloads + "/fallbacks.vpk" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
+
+	if ( hasVPKBuild )
+	{
+		AddSearchPath( ( downloads + "/fallbacks" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
+		AddSearchPath( ( downloads + "/fallbacks" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
+	}
+
+	PrintSearchPaths();
 }
 
 // RaphaelIT7:
