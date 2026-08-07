@@ -25,8 +25,10 @@
 #include "tier1/checksum_md5.h"
 
 #include "sdk_backports.h"
+#include <atomic>
 
-#define VPK_ENABLE_SIGNING
+// RaphaelIT7: GMod doesn't use this
+// #define VPK_ENABLE_SIGNING
 
 constexpr int k_nVPKDefaultChunkSize = 200 * 1024 * 1024;
 

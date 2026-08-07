@@ -1,5 +1,7 @@
 #pragma once
 
+#include "garrysmod/public/IAddonSystem.h"
+
 namespace GarrysMod
 {
 
@@ -24,6 +26,6 @@ public:
 
 	// Called from Addon::FileSystem::ScanForSubscriptions
 	void RunAddonProcess(const char* pszUnknown);
-}
+};
 
 }

@@ -70,6 +70,9 @@
 }
 #endif	//_WIN32
 
+// dimhotepus: Add type-safe interface.
+#define stackallocT( type_, _size )		static_cast<type_*>( stackalloc( sizeof(type_) * (_size) ) )
+
 // Given a path and a filename, composes "path\filename", inserting the (OS correct) separator if necessary
 template<intp destSize>
 void V_ComposeFileName( IN_Z const char *path, IN_Z const char *filename, OUT_Z_ARRAY char (&dest)[destSize] )

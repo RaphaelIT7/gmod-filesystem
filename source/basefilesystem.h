@@ -922,8 +922,28 @@ protected:
 	friend class CFileAsyncReadJob;
 	void RemoveAsyncCustomFetchJob( CFileAsyncReadJob *pJob );
 
+	// RaphaelIT7: This also was added in GMod but probably somewhere else... who cares about offsets anyways :3c
 	char m_pBaseDir[MAX_PATH];
 	int m_iBaseLength;
+
+public: // GMOD
+	CSearchPath *NewSearchPath( SearchPathAdd_t addType );
+
+	virtual void RemoveSearchPathsByGroup( int iPriorityGroup );
+	virtual void SetGet( IGet* pGet );
+	virtual Addon::FileSystem *Addons();
+	virtual Gamemode::System *Gamemodes();
+	virtual GameDepot::System *Games();
+	virtual LegacyAddons::System *LegacyAddons();
+	virtual CLanguage *Language();
+	virtual void DoFilesystemRefresh();
+	virtual int LastFilesystemRefresh();
+	virtual void AddVPKFileFromPath( const char* pPath, const char* pPathID, SearchPathAdd_t addType );
+	virtual void GMOD_SetupDefaultPaths( const char *pszGamePath, const char *pszModPath );
+	virtual void GMOD_FixPathCase( char *, size_t = 0);
+
+private: // GMOD
+	int m_iRefreshCounter = 0;
 };
 
 inline const CUtlSymbol& CBaseFileSystem::CPathIDInfo::GetPathID() const

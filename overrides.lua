@@ -262,6 +262,7 @@ function CreateProject(config)
         vs2017 = true,
         vs2019 = true,
         vs2022 = true,
+        vs2026 = true,
         install = true,
         clean = true,
         lint = true,

@@ -35,6 +35,9 @@
 #undef min
 #undef max
 
+// GMOD
+IGet* get = nullptr;
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 #include <system_error>
@@ -5182,7 +5185,7 @@ int CFileHandle::Write( IN_BYTECAP(nLength) const void* pBuffer, int nLength )
 	return nBytesWritten;
 }
 
-int CFileHandle::Seek( int64 nOffset, int nWhence )
+unsigned int CFileHandle::Seek( int64 nOffset, int nWhence )
 {
 	Assert( IsValid() );
 
@@ -5212,7 +5215,7 @@ int CFileHandle::Seek( int64 nOffset, int nWhence )
 	return -1;
 }
 
-int CFileHandle::Tell()
+unsigned int CFileHandle::Tell()
 {
 	Assert( IsValid() );
 
@@ -5241,7 +5244,7 @@ int CFileHandle::Tell()
 	return -1;
 }
 
-unsigned CFileHandle::Size()
+unsigned int CFileHandle::Size()
 {
 	Assert( IsValid() );
 
@@ -5444,4 +5447,77 @@ CBaseFileSystem::CFileCacheObject::~CFileCacheObject()
 		delete info;
 	}
 	Assert( m_nPending == 0 );
+}
+
+/*
+	GMOD Functions
+*/
+
+CBaseFileSystem::CSearchPath *CBaseFileSystem::NewSearchPath( SearchPathAdd_t addType )
+{
+	return nullptr;
+}
+
+void CBaseFileSystem::RemoveSearchPathsByGroup( int iPriorityGroup )
+{
+	// ToDo
+}
+
+void CBaseFileSystem::SetGet( IGet* pGet )
+{
+	get = pGet;
+}
+
+Addon::FileSystem *CBaseFileSystem::Addons()
+{
+	return nullptr;
+}
+
+Gamemode::System *CBaseFileSystem::Gamemodes()
+{
+	return nullptr;
+}
+
+GameDepot::System *CBaseFileSystem::Games()
+{
+	return nullptr;
+}
+
+LegacyAddons::System *CBaseFileSystem::LegacyAddons()
+{
+	return nullptr;
+}
+
+CLanguage *CBaseFileSystem::Language()
+{
+	return nullptr;
+}
+
+void CBaseFileSystem::DoFilesystemRefresh()
+{
+	++m_iRefreshCounter;
+}
+
+int CBaseFileSystem::LastFilesystemRefresh()
+{
+	return m_iRefreshCounter;
+}
+
+// RaphaelIT7: It really just calls AddVPKFile...
+void CBaseFileSystem::AddVPKFileFromPath( const char* pPath, const char* pPathID, SearchPathAdd_t addType )
+{
+	AddVPKFile( pPath, pPathID, addType );
+}
+
+void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const char *pszModPath )
+{
+	Msg( "CFileSystem_Stdio::GMOD_SetupDefaultPaths called with %s %s\n", pszGamePath, pszModPath );
+}
+
+// RaphaelIT7:
+// This one seems to actually live in CFileSystem_Stdio?
+// It also doesn't seem to exist in newer builds. So we can leave this be for now I guess.
+void CBaseFileSystem::GMOD_FixPathCase( char *pszUnknown1, size_t nUnknown2 )
+{
+	Msg( "CFileSystem_Stdio::GMOD_FixPathCase\n" );
 }

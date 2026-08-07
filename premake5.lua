@@ -56,7 +56,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 		IncludeSDKCommon()
 		IncludeSDKTier0()
 		IncludeSDKTier1()
-		--IncludeSDKTier2()
+		IncludeSDKTier2()
 		--IncludeSDKTier3()
 		--IncludeSDKMathlib()
 		--IncludeSDKRaytrace()
@@ -84,9 +84,12 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 		end
 
 		files({
+			gmcommon .. [[/sourcesdk-minimal/public/zip_utils.cpp]],
+			gmcommon .. [[/sourcesdk-minimal/public/kevvaluescompiler.cpp]],
 			rootDir .. "README.md",
 			rootDir .. ".github/workflows/**.yml",
-			sourcePath .. "garrysmod/**"
+			sourcePath .. "garrysmod/**",
+			sourcePath .. "vpklib/**",
 		})
 
 		vpaths({
