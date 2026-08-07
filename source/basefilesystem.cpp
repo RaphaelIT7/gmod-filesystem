@@ -780,7 +780,7 @@ bool CBaseFileSystem::RemoveVPKFile( const char *pPath, const char *pPathID )
 	CUtlSymbol pathIDSym = g_PathIDTable.AddString( pPathID );
 
 	// See if we already have this vpk file as a search path
-	for ( intp i = 0; i < m_SearchPaths.Count(); i++ )
+	for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); i = m_SearchPaths.Next( i ) )
 	{
 		CPackedStoreRefCount *p = m_SearchPaths[i].GetPackedStore();
 		if ( p && V_strieq( p->FullPathName(), nameBuf ) )
@@ -902,21 +902,24 @@ void CBaseFileSystem::AddPackFiles( const char *pPath, const CUtlSymbol &pathID,
 	// Add any zip files in the format zip1.zip ... zip0.zip
 	// Add them backwards so zip(N) is higher priority than zip(N-1), etc.
 	intp pakcount = pakSizes.Count();
-	intp nCount = 0;
+	auto nInsertAfter = m_SearchPaths.InvalidIndex();
 	for ( intp i = pakcount-1; i >= 0; i-- )
 	{
 		char fullpath[MAX_PATH];
 		V_ComposeFileName( pPath, pakNames[i].Get(), fullpath );
 
-		intp nIndex;
+		auto nIndex = m_SearchPaths.InvalidIndex();
 		if ( addType == PATH_ADD_TO_TAIL )
 		{
 			nIndex = m_SearchPaths.AddToTail();
 		}
 		else
 		{
-			nIndex = m_SearchPaths.InsertBefore( nCount );
-			++nCount;
+			if ( nInsertAfter == m_SearchPaths.InvalidIndex() )
+				nIndex = m_SearchPaths.AddToHead();
+			else
+				nIndex = m_SearchPaths.InsertAfter( nInsertAfter );
+			nInsertAfter = nIndex;
 		}
 
 		CSearchPath *sp = &m_SearchPaths[ nIndex ];
@@ -968,6 +971,8 @@ void CBaseFileSystem::AddPackFiles( const char *pPath, const CUtlSymbol &pathID,
 						pf->m_hPackFileHandleFS = nullptr;
 					}
 					m_SearchPaths.Remove( nIndex );
+					if ( nInsertAfter == nIndex )
+						nInsertAfter = m_SearchPaths.InvalidIndex();
 				}
 			}
 			else
@@ -977,7 +982,9 @@ void CBaseFileSystem::AddPackFiles( const char *pPath, const CUtlSymbol &pathID,
 				//if ( !pf->m_hPackFileHandleVPK || !pf->Prepare( pakSizes[i] ) )
 				{
 					m_SearchPaths.Remove( nIndex );
-				} 
+					if ( nInsertAfter == nIndex )
+						nInsertAfter = m_SearchPaths.InvalidIndex();
+				}
 			}
 		}
 	}
@@ -990,15 +997,14 @@ void CBaseFileSystem::RemoveAllMapSearchPaths( void )
 {
 	AsyncFinishAll();
 
-	intp c = m_SearchPaths.Count();
-	for ( intp i = c - 1; i >= 0; i-- )
+	for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
 	{
-		if ( !( m_SearchPaths[i].GetPackFile() && m_SearchPaths[i].GetPackFile()->m_bIsMapPath ) )
+		auto next = m_SearchPaths.Next( i );
+		if ( m_SearchPaths[i].GetPackFile() && m_SearchPaths[i].GetPackFile()->m_bIsMapPath )
 		{
-			continue;
+			m_SearchPaths.Remove( i );
 		}
-		
-		m_SearchPaths.Remove( i );
+		i = next;
 	}
 }
 
@@ -1306,7 +1312,6 @@ void CBaseFileSystem::AddSearchPathInternal( const char *pPath, const char *path
 	// Make sure that it doesn't already exist
 	CUtlSymbol pathSym = g_PathIDTable.AddString( newPath );
 	CUtlSymbol pathIDSym = g_PathIDTable.AddString( pathID );
-	intp c = m_SearchPaths.Count();
 	int id = 0;
 	for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
 	{
@@ -1471,19 +1476,16 @@ bool CBaseFileSystem::RemoveSearchPath( const char *pPath, const char *pathID )
 
 	bool bret = false;
 
-	// Count backward since we're possibly deleting one or more pack files, too
-	intp i;
-	intp c = m_SearchPaths.Count();
-	for( i = c - 1; i >= 0; i-- )
+	for( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
 	{
-		if ( newPath[0] && m_SearchPaths[i].GetPath() != lookup )
-			continue;
-
-		if ( FilterByPathID( &m_SearchPaths[i], id ) )
-			continue;
-
-		m_SearchPaths.Remove( i );
-		bret = true;
+		auto next = m_SearchPaths.Next( i );
+		if ( ( !newPath[0] || m_SearchPaths[i].GetPath() == lookup ) &&
+			 !FilterByPathID( &m_SearchPaths[i], id ) )
+		{
+			m_SearchPaths.Remove( i );
+			bret = true;
+		}
+		i = next;
 	}
 	return bret;
 }
@@ -1518,8 +1520,7 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::FindWritePath( const char *pFilen
 	AUTO_LOCK( m_SearchPathsMutex );
 
 	// a pathID has been specified, find the first match in the path list
-	intp c = m_SearchPaths.Count();
-	for ( intp i = 0; i < c; i++ )
+	for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); i = m_SearchPaths.Next( i ) )
 	{
 		// pak files are not allowed to be written to...
 		CSearchPath *pSearchPath = &m_SearchPaths[i];
@@ -2223,7 +2224,7 @@ FileHandle_t CBaseFileSystem::OpenForRead( const char *pFileNameT, const char *p
 			char *pRelativeFileName = pSlash + 1;
 
 			// Find the zip or VPK in the search paths
-			for ( intp i = 0; i < m_SearchPaths.Count(); i++ )
+			for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); i = m_SearchPaths.Next( i ) )
 			{
 
 				// In VPK?
@@ -3197,7 +3198,7 @@ void CBaseFileSystem::EnableWhitelistFileTracking( bool bEnable, bool bCacheAllV
 void CBaseFileSystem::CacheAllVPKFileHashes( bool bCacheAllVPKHashes, bool bRecalculateAndCheckHashes )
 {
 #ifdef SUPPORT_PACKED_STORE
-	for ( intp i = 0; i < m_SearchPaths.Count(); i++ )
+	for ( auto i = m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); i = m_SearchPaths.Next( i ) )
 	{
 		CPackedStore *pVPK = m_SearchPaths[i].GetPackedStore();
 		if ( pVPK == nullptr )
@@ -3737,14 +3738,13 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 	{
 		// Absolute path, cannot be VPK or Pak
 		pFindData->findHandle = FS_FindFirstFile( pWildCard, &pFindData->findData );
-		pFindData->currentSearchPathID = -1;
+		pFindData->currentSearchPathID = m_SearchPaths.InvalidIndex();
 	}
 	else
 	{
-		intp c = m_SearchPaths.Count();
-		for(	pFindData->currentSearchPathID = 0;
-				pFindData->currentSearchPathID < c;
-				pFindData->currentSearchPathID++ )
+		for(	pFindData->currentSearchPathID = m_SearchPaths.Head();
+				pFindData->currentSearchPathID != m_SearchPaths.InvalidIndex();
+				pFindData->currentSearchPathID = m_SearchPaths.Next( pFindData->currentSearchPathID ) )
 		{
 			CSearchPath *pSearchPath = &m_SearchPaths[pFindData->currentSearchPathID];
 
@@ -3852,10 +3852,10 @@ bool CBaseFileSystem::FindNextFileHelper( FindData_t *pFindData, int *pFoundStor
 		return true;
 
 	// This happens when we searched a full path
-	if ( pFindData->currentSearchPathID < 0 )
+	if ( pFindData->currentSearchPathID == m_SearchPaths.InvalidIndex() )
 		return false;
 
-	pFindData->currentSearchPathID++;
+	pFindData->currentSearchPathID = m_SearchPaths.Next( pFindData->currentSearchPathID );
 
 	if ( pFindData->findHandle != INVALID_HANDLE_VALUE )
 	{
@@ -3863,8 +3863,7 @@ bool CBaseFileSystem::FindNextFileHelper( FindData_t *pFindData, int *pFoundStor
 	}
 	pFindData->findHandle = INVALID_HANDLE_VALUE;
 
-	intp c = m_SearchPaths.Count();
-	for( ; pFindData->currentSearchPathID < c; ++pFindData->currentSearchPathID ) 
+	for( ; pFindData->currentSearchPathID != m_SearchPaths.InvalidIndex(); pFindData->currentSearchPathID = m_SearchPaths.Next( pFindData->currentSearchPathID ) )
 	{
 		CSearchPath *pSearchPath = &m_SearchPaths[pFindData->currentSearchPathID];
 
@@ -4597,7 +4596,7 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetFirst()
 	if ( m_SearchPaths.Count() )
 	{
 		m_visits.Reset();
-		m_iCurrent = -1;
+		m_iCurrent = m_SearchPaths.InvalidIndex();
 		return GetNext();
 	}
 	return &m_EmptySearchPath;
@@ -4611,7 +4610,8 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetNext()
 {
 	CSearchPath *pSearchPath = nullptr;
 
-	for ( m_iCurrent++; m_iCurrent < m_SearchPaths.Count(); m_iCurrent++ )
+	m_iCurrent = ( m_iCurrent == m_SearchPaths.InvalidIndex() ) ? m_SearchPaths.Head() : m_SearchPaths.Next( m_iCurrent );
+	for ( ; m_iCurrent != m_SearchPaths.InvalidIndex(); m_iCurrent = m_SearchPaths.Next( m_iCurrent ) )
 	{
 		pSearchPath = &m_SearchPaths[m_iCurrent];
 
@@ -4628,7 +4628,7 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetNext()
 			break;
 	}
 
-	if ( m_iCurrent < m_SearchPaths.Count() )
+	if ( m_iCurrent != m_SearchPaths.InvalidIndex() )
 	{
 		return pSearchPath;
 	}
@@ -4638,7 +4638,10 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetNext()
 
 void CBaseFileSystem::CSearchPathsIterator::CopySearchPaths( const CUtlLinkedList<CSearchPath>	&searchPaths )
 {
-	m_SearchPaths = searchPaths;
+	m_SearchPaths.RemoveAll();
+	for ( auto i = searchPaths.Head(); i != searchPaths.InvalidIndex(); i = searchPaths.Next( i ) )
+		m_SearchPaths.AddToTail( searchPaths[i] );
+
 	for ( auto &sp : m_SearchPaths )
 	{
 		if ( sp.GetPackFile() )

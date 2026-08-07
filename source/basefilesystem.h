@@ -619,7 +619,7 @@ public:
 	{
 	public:
 		CSearchPathsIterator( CBaseFileSystem *pFileSystem, const char **ppszFilename, const char *pszPathID, PathTypeFilter_t pathTypeFilter = FILTER_NONE )
-		  : m_iCurrent( -1 ),
+		  : m_iCurrent( CUtlLinkedList<CSearchPath>::InvalidIndex() ),
 			m_PathTypeFilter( pathTypeFilter )
 		{
 			m_Filename[0] = '\0';
@@ -661,7 +661,7 @@ public:
 		}
 
 		CSearchPathsIterator( CBaseFileSystem *pFileSystem, const char *pszPathID, PathTypeFilter_t pathTypeFilter = FILTER_NONE )
-		  : m_iCurrent( -1 ),
+		  : m_iCurrent( CUtlLinkedList<CSearchPath>::InvalidIndex() ),
 			m_PathTypeFilter( pathTypeFilter )
 		{
 			if ( pszPathID ) 
@@ -690,7 +690,7 @@ public:
 		void operator=(const CSearchPathsIterator &);
 		void CopySearchPaths( const CUtlLinkedList<CSearchPath>	&searchPaths );
 
-		intp						m_iCurrent;
+		CUtlLinkedList<CSearchPath>::IndexLocalType_t	m_iCurrent;
 		CUtlSymbol					m_pathID;
 		CUtlLinkedList<CSearchPath> 	m_SearchPaths;
 		CSearchPathsVisits			m_visits;
@@ -705,7 +705,7 @@ public:
 	struct FindData_t
 	{
 		WIN32_FIND_DATA		findData;
-		int					currentSearchPathID;
+		CUtlLinkedList<CSearchPath>::IndexLocalType_t	currentSearchPathID;
 		CUtlVector<char>	wildCardString;
 		HANDLE				findHandle;
 		CSearchPathsVisits	m_VisitedSearchPaths;	// This is a copy of IDs for the search paths we've visited, so avoids searching duplicate paths.
