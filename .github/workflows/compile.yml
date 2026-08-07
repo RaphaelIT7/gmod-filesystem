@@ -1,4 +1,4 @@
-name: Build Plugin
+name: Build DLL
 
 on: 
   push:
@@ -11,7 +11,8 @@ on:
 
 jobs:
   build_windows:
-    name: "Build Plugin"
+    name: "Build DLL"
+    if: 0
     uses: RaphaelIT7/gmod-common-module-base/.github/workflows/compile.yml@workflow
     with:
       PROJECT_NAME: "filesystem_stdio"
@@ -30,7 +31,7 @@ jobs:
       UPLOAD_PDB: "true"
 
   build_windows_dedicated:
-    name: "Build Plugin (Dedicated)"
+    name: "Build DLL (Dedicated)"
     if: false
     uses: RaphaelIT7/gmod-common-module-base/.github/workflows/compile.yml@workflow
     with:
@@ -51,7 +52,7 @@ jobs:
       BUILD_WINDOWS_DEDICATED: "true"
 
   build_windows_64x_main:
-    name: "Build Plugin (64x - Main Branch)"
+    name: "Build DLL (64x - Main Branch)"
     if: false
     uses: RaphaelIT7/gmod-common-module-base/.github/workflows/compile.yml@workflow
     with:
@@ -72,7 +73,7 @@ jobs:
       UPLOAD_PDB: "true"
 
   build_linux:
-    name: "Build Plugin"
+    name: "Build DLL"
     uses: RaphaelIT7/gmod-common-module-base/.github/workflows/compile.yml@workflow
     with:
       PROJECT_NAME: "filesystem_stdio"
@@ -90,6 +91,7 @@ jobs:
 
   build_ghostinj:
     name: "Build GhostInj"
+    if: 0
     uses: RaphaelIT7/gmod-common-module-base/.github/workflows/compile.yml@workflow
     with:
       PROJECT_PATH: "ghostinj-dll/"

@@ -31,6 +31,11 @@
 #include "tier1/utlrbtree.h"
 #include "vstdlib/osversion.h"
 
+#undef min
+#undef max
+#include <system_error>
+#include "sdk_backports.h"
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -284,14 +289,13 @@ CFileSystem_Stdio::~CFileSystem_Stdio()
 	Assert(!m_bMounted);
 }
 
-
 //-----------------------------------------------------------------------------
 // QueryInterface: 
 //-----------------------------------------------------------------------------
 void *CFileSystem_Stdio::QueryInterface( const char *pInterfaceName )
 {
 	// We also implement the IMatSystemSurface interface
-	if (!Q_strncmp(	pInterfaceName, FILESYSTEM_INTERFACE_VERSION, ssize(FILESYSTEM_INTERFACE_VERSION) ))
+	if (!Q_strncmp(	pInterfaceName, FILESYSTEM_INTERFACE_VERSION, std::size(FILESYSTEM_INTERFACE_VERSION) ))
 		return (IFileSystem*)this;
 
 	return CBaseFileSystem::QueryInterface( pInterfaceName );
@@ -997,7 +1001,7 @@ int GetSectorSize( const char *pszFilename )
 	char szAbsoluteFilename[MAX_FILEPATH];
 	if ( pszFilename[1] != ':' )
 	{
-		V_MakeAbsolutePath( szAbsoluteFilename, pszFilename );
+		V_MakeAbsolutePath( szAbsoluteFilename, sizeof(szAbsoluteFilename), pszFilename );
 		pszFilename = szAbsoluteFilename;
 	}
 
@@ -1257,7 +1261,7 @@ size_t CWin32ReadOnlyFile::FS_fread( OUT_BYTECAP(destSize) void *dest, size_t de
 		return 0;
 	}
 
-	if ( destSize == std::numeric_limits<size_t>::max() )
+	if ( destSize == std::numeric_limits<size_t>::min() )
 	{
 		destSize = size;
 	}
@@ -1322,7 +1326,7 @@ size_t CWin32ReadOnlyFile::FS_fread( OUT_BYTECAP(destSize) void *dest, size_t de
 
 	while ( bReadOk && nBytesToRead > 0 )
 	{
-		int nCurBytesToRead = min( nBytesToRead, MAX_READ );
+		int nCurBytesToRead = MIN( nBytesToRead, MAX_READ );
 		DWORD nCurBytesRead = 0;
 
 		overlapped.Offset = currentOffset & 0xFFFFFFFF;
@@ -1405,7 +1409,7 @@ size_t CWin32ReadOnlyFile::FS_fread( OUT_BYTECAP(destSize) void *dest, size_t de
 			}
 		}
 
-		result = min( (size_t)nBytesRead, size );
+		result = MIN( (size_t)nBytesRead, size );
 	}
 
 	if ( m_bOverlapped )
@@ -1442,7 +1446,7 @@ char *CWin32ReadOnlyFile::FS_fgets( OUT_Z_CAP(destSize) char *dest, int destSize
 		return NULL;
 	}
 
-	dest[min( nBytesRead, destSize - 1)] = 0;
+	dest[MIN( nBytesRead, destSize - 1)] = 0;
 	char *pNewline = strchr( dest, '\n' );
 	if ( pNewline )
 	{
@@ -1452,7 +1456,7 @@ char *CWin32ReadOnlyFile::FS_fgets( OUT_Z_CAP(destSize) char *dest, int destSize
 	}
 	else
 	{
-		pNewline = &dest[min( nBytesRead, destSize - 1)];
+		pNewline = &dest[MIN( nBytesRead, destSize - 1)];
 	}
 
 	m_ReadPos = nStartPos + ( pNewline - dest ) + 1;

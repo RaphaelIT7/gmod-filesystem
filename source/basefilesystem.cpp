@@ -11,15 +11,13 @@
 #include "tier1/characterset.h"
 #include "tier1/utlbuffer.h"
 #include "tier1/convar.h"
-#include "tier1/KeyValues.h"
+#include "tier1/keyvalues.h"
 #include "tier1/generichash.h"
 #include "tier1/utllinkedlist.h"
 #include "filesystem/IQueuedLoader.h"
 #include "tier2/tier2.h"
 #include "zip_utils.h"
 #include "packfile.h"
-
-#include "posix_file_stream.h"
 
 #ifndef DEDICATED
 #include "keyvaluescompiler.h"
@@ -33,8 +31,13 @@
 #include <shellapi.h>
 #endif
 
+#include "sdk_backports.h"
+#undef min
+#undef max
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+#include <system_error>
 
 
 ConVar fs_report_sync_opens( "fs_report_sync_opens", "0", 0, "0:Off, 1:Blocking only, 2:All" );
@@ -89,12 +92,12 @@ static void LogFileOpen( const char *vpk, const char *pFilename, const char *pAb
 		return;
 
 	// Open file for write or append
-	auto [f, rc] = se::posix::posix_file_stream_factory::open( "opened_files.txt", mode );
-	Assert( !rc );
-	if ( !rc )
+	FILE *f = fopen( "opened_files.txt", mode );
+	Assert( !f );
+	if ( !f )
 	{
-		std::tie(std::ignore, rc) = f.print( "%s, %s, %s\n", vpk, pFilename, pAbsPath );
-		Assert( !rc );
+		fprintf( f, "%s, %s, %s\n", vpk, pFilename, pAbsPath );
+		fclose( f );
 
 		// If this was the first time, switch from write to append for further writes
 		mode = "at";
@@ -734,7 +737,7 @@ void CBaseFileSystem::AddVPKFile( char const *pPath, const char *pPathID, Search
 	if ( pVPK == nullptr )
 	{
 		char pszFName[MAX_PATH];
-		pVPK = new CPackedStoreRefCount( nameBuf, pszFName, ssize(pszFName), this ); 
+		pVPK = new CPackedStoreRefCount( nameBuf, pszFName, std::size(pszFName), this ); 
 		if ( pVPK->IsEmpty() )
 		{
 			delete pVPK;
@@ -1390,7 +1393,7 @@ void CBaseFileSystem::AddSearchPath( const char *pPath, const char *pathID, Sear
 // Pack search paths include the pack name, so that callers can still form absolute paths
 // and that absolute path can be sent to the filesystem, and mounted as a file inside a pack.
 //-----------------------------------------------------------------------------
-int CBaseFileSystem::GetSearchPath( const char *pathID, bool bGetPackFiles, OUT_Z_CAP(maxLenInChars) char *pDest, intp maxLenInChars )
+int CBaseFileSystem::GetSearchPath( const char *pathID, bool bGetPackFiles, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars )
 {
 	AUTO_LOCK( m_SearchPathsMutex );
 
@@ -1584,7 +1587,11 @@ const char *CBaseFileSystem::GetWritePath( const char *pFilename, const char *pa
 //-----------------------------------------------------------------------------
 // Reads/writes files to utlbuffers.  Attempts alignment fixups for optimal read
 //-----------------------------------------------------------------------------
-CThreadLocal<const char *> g_pszReadFilename;
+// RaphaelIT7:
+// This exists as adding another argument to ReadToBuffer would need to change the exposed virtual function.
+// Which we cannot do due to compatibility.
+// This was a CThreadLocal<const char*> before but the SDK didn't like that.
+static thread_local const char *g_pszReadFilename = nullptr;
 bool CBaseFileSystem::ReadToBuffer( FileHandle_t fp, CUtlBuffer &buf, int nMaxBytes, FSAllocFunc_t pfnAlloc )
 {
 	SetBufferSize( fp, 0 );  // TODO: what if it's a pack file? restore buffer size?
@@ -1599,7 +1606,7 @@ bool CBaseFileSystem::ReadToBuffer( FileHandle_t fp, CUtlBuffer &buf, int nMaxBy
 	if ( nMaxBytes > 0 )
 	{
 		// can't read more than file has
-		nBytesToRead = min( nMaxBytes, nBytesToRead );
+		nBytesToRead = MIN( nMaxBytes, nBytesToRead );
 	}
 
 	int nBytesRead = 0;
@@ -1642,7 +1649,7 @@ bool CBaseFileSystem::ReadToBuffer( FileHandle_t fp, CUtlBuffer &buf, int nMaxBy
 		else
 		{
 			// caller provided allocator
-			void *pMemory = (*pfnAlloc)( g_pszReadFilename.Get(), nBytesDestBuffer );
+			void *pMemory = (*pfnAlloc)( g_pszReadFilename, nBytesDestBuffer );
 			buf.SetExternalBuffer( pMemory, nBytesDestBuffer, 0, buf.GetFlags() & ~CUtlBuffer::EXTERNAL_GROWABLE );
 		}
 
@@ -1650,7 +1657,7 @@ bool CBaseFileSystem::ReadToBuffer( FileHandle_t fp, CUtlBuffer &buf, int nMaxBy
 		if ( nBytesDestBuffer != nBytesToRead )
 		{
 			// doing optimal read, align target pointer
-			intp nAlignedBase = AlignValue( buf.Base<byte>(), nBufferAlign ) - buf.Base<byte>();
+			intp nAlignedBase = AlignValue( (byte*)buf.Base(), nBufferAlign ) - (byte*)buf.Base();
 			buf.SeekPut( CUtlBuffer::SEEK_HEAD, nAlignedBase );
 	
 			// the buffer read position is slid forward to ignore the addtional
@@ -1698,7 +1705,7 @@ bool CBaseFileSystem::ReadFile( const char *pFileName, const char *pPath, CUtlBu
 
 	if ( pfnAlloc )
 	{
-		g_pszReadFilename.Set( pFileName );
+		g_pszReadFilename = pFileName;
 	}
 
 	return ReadToBuffer( fp, buf, nMaxBytes, pfnAlloc );
@@ -1723,7 +1730,7 @@ int CBaseFileSystem::ReadFileEx( const char *pFileName, const char *pPath, void 
 	int nBytesRead = 0;
 	if ( nMaxBytes > 0 )
 	{
-		nBytesToRead = min( nMaxBytes, nBytesToRead );
+		nBytesToRead = MIN( nMaxBytes, nBytesToRead );
 		if ( bNullTerminate )
 		{
 			nBytesToRead--;
@@ -2467,7 +2474,7 @@ void CBaseFileSystem::Close( FileHandle_t file )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-void CBaseFileSystem::Seek( FileHandle_t file, int pos, FileSystemSeek_t whence )
+void CBaseFileSystem::Seek( FileHandle_t file, long long pos, FileSystemSeek_t whence )
 {
 	tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s (pos=%d, whence=%d)", __FUNCTION__, pos, whence );
 
@@ -2480,7 +2487,7 @@ void CBaseFileSystem::Seek( FileHandle_t file, int pos, FileSystemSeek_t whence 
 		return;
 	}
 	
-	fh->Seek( pos, to_underlying( whence ) );
+	fh->Seek( pos, whence );
 }
 
 //-----------------------------------------------------------------------------
@@ -2780,7 +2787,7 @@ bool CBaseFileSystem::LookupKeyValuesRootKeyName( char const *filename, char con
 	RunCodeAtScopeExit(Close( hFile ));
 
 	char buf[ 128 ];
-	static_cast<IFileSystem *>(this)->ReadLine( buf, hFile );
+	static_cast<IFileSystem *>(this)->ReadLine( buf, sizeof( buf ), hFile );
 
 	// The name will possibly come in as "foo"\n
 
@@ -3076,7 +3083,7 @@ char *CBaseFileSystem::ReadLine( OUT_Z_CAP(maxChars) char *pOutput, int maxChars
 // Input  : *pFileName - 
 // Output : long
 //-----------------------------------------------------------------------------
-time_t CBaseFileSystem::GetFileTime( const char *pFileName, const char *pPathID )
+long CBaseFileSystem::GetFileTime( const char *pFileName, const char *pPathID )
 {
 	VPROF_BUDGET( "CBaseFileSystem::GetFileTime", VPROF_BUDGETGROUP_OTHER_FILESYSTEM );
 
@@ -3118,7 +3125,7 @@ time_t CBaseFileSystem::GetFileTime( const char *pFileName, const char *pPathID 
 	return 0L;
 }
 
-time_t CBaseFileSystem::GetPathTime( const char *pFileName, const char *pPathID )
+long CBaseFileSystem::GetPathTime( const char *pFileName, const char *pPathID )
 {
 	VPROF_BUDGET( "CBaseFileSystem::GetPathTime", VPROF_BUDGETGROUP_OTHER_FILESYSTEM );
 
@@ -3436,7 +3443,7 @@ void CBaseFileSystem::SetWhitelistSpewFlags( int flags )
 //			maxChars - 
 //			fileTime - 
 //-----------------------------------------------------------------------------
-void CBaseFileSystem::FileTimeToString( OUT_Z_CAP(maxChars) char *pString, intp maxChars, time_t fileTime )
+void CBaseFileSystem::FileTimeToString( OUT_Z_CAP(maxChars) char *pString, int maxChars, long fileTime )
 {
 	time_t time = fileTime;
 	V_strncpy( pString, ctime( &time ), maxChars );
@@ -4277,76 +4284,6 @@ bool CBaseFileSystem::FullPathToRelativePath( const char *pFullPath, OUT_Z_CAP(m
 
 
 //-----------------------------------------------------------------------------
-// Returns true on successfully retrieve case-sensitive full path, otherwise false
-//-----------------------------------------------------------------------------
-bool CBaseFileSystem::GetCaseCorrectFullPath_Ptr( const char *pFullPath, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars )
-{
-	CHECK_DOUBLE_SLASHES( pFullPath );
-	
-#ifndef _WIN32
-	V_strncpy( pDest, pFullPath, maxLenInChars );
-	return true;
-#else
-
-	char szCurrentDir[MAX_PATH];
-	V_strcpy_safe( szCurrentDir, pFullPath );
-	V_StripLastDir( szCurrentDir );
-
-	CUtlString strSearchName = pFullPath;
-	strSearchName.StripTrailingSlash();
-	strSearchName = strSearchName.Slice( V_strlen( szCurrentDir ), strSearchName.Length() );
-
-	CUtlString strSearchPath = szCurrentDir;
-	strSearchPath += "*";
-
-	CUtlString strFoundCaseCorrectName;
-	{
-		FileFindHandle_t findHandle = FILESYSTEM_INVALID_FIND_HANDLE;
-		const char *pszCaseCorrectName = FindFirst( strSearchPath.Get(), &findHandle );
-		RunCodeAtScopeExit(FindClose( findHandle ));
-
-		while ( pszCaseCorrectName )
-		{
-			if ( V_strieq( strSearchName.String(), pszCaseCorrectName ) )
-			{
-				strFoundCaseCorrectName = pszCaseCorrectName;
-				break;
-			}
-			pszCaseCorrectName = FindNext( findHandle );
-		}
-	}
-
-	// Not found
-	if ( strFoundCaseCorrectName.IsEmpty() )
-	{
-		V_strncpy( pDest, pFullPath, maxLenInChars );
-		return false;
-	}
-
-	// If drive path, no need to recurse anymore.
-	bool bResult = false;
-	char szDir[MAX_PATH];
-	if ( !IsDirectory( szCurrentDir, nullptr ) )
-	{
-		V_strupr( szCurrentDir );
-		V_strcpy_safe( szDir, szCurrentDir );
-		bResult = true;
-	}
-	else
-	{
-		bResult = GetCaseCorrectFullPath( szCurrentDir, szDir );
-	}
-
-	// connect the current path with the case-correct dir/file name
-	V_MakeAbsolutePath( pDest, maxLenInChars, strFoundCaseCorrectName.String(), szDir );
-
-	return bResult;
-#endif // _WIN32
-}
-
-
-
-//-----------------------------------------------------------------------------
 // Deletes a file
 //-----------------------------------------------------------------------------
 void CBaseFileSystem::RemoveFile( char const* pRelativePath, const char *pathID )
@@ -4830,7 +4767,7 @@ FileNameHandle_t CBaseFileSystem::FindFileName( char const *pFileName )
 // Input  : handle - 
 // Output : char const
 //-----------------------------------------------------------------------------
-bool CBaseFileSystem::String( const FileNameHandle_t& handle, OUT_Z_CAP(buflen) char *buf, intp buflen )
+bool CBaseFileSystem::String( const FileNameHandle_t& handle, OUT_Z_CAP(buflen) char *buf, int buflen )
 {
 	return m_FileNames.String( handle, buf, buflen );
 }
@@ -5356,7 +5293,7 @@ bool CFileHandle::EndOfFile()
 
 int CMemoryFileHandle::Read( void* pBuffer, int nDestSize, int nLength )
 {
-	nLength = min( nLength, (int) m_nLength - m_nPosition );
+	nLength = MIN( nLength, (int) m_nLength - m_nPosition );
 	if ( nLength > 0 )
 	{
 		Assert( m_nPosition >= 0 );

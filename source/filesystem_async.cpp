@@ -27,6 +27,9 @@
 #include "vstdlib/random.h"
 #include "basefilesystem.h"
 
+#include <sdk_backports.h>
+#include <memory>
+
 // VCR mode for now is handled by not running async.  This is primarily for
 // performance reasons. VCR mode would preclude the use of a lock-free job
 // retrieval. Can change if need in future, but it's best to do so if needed,
@@ -304,7 +307,7 @@ public:
 
 	CFileAsyncReadJob *AsReadJob() { return this; }
 
-	char const	*Describe() const override
+	char const	*Describe() override
 	{
 		return pszFilename; 
 	}
@@ -343,7 +346,7 @@ public:
 		{
 			int iPrevPriority = ThreadGetPriority();
 			ThreadSetPriority( 2 );
-			retval = to_underlying(BaseFileSystem()->SyncRead( *this ));
+			retval = BaseFileSystem()->SyncRead( *this );
 			ThreadSetPriority( iPrevPriority );
 		}
 
@@ -463,7 +466,7 @@ public:
 		free( (void *)m_pszFilename );
 	}
 
-	char const *Describe() const override { return m_pszFilename; }
+	char const *Describe() override { return m_pszFilename; }
 
 	bool IsWrite() const override { return true; }
 
@@ -473,7 +476,7 @@ public:
 #if defined( TRACK_BLOCKING_IO )
 		bool oldState = BaseFileSystem()->SetAllowSynchronousLogging( false );
 #endif
-		JobStatus_t retval = to_underlying(BaseFileSystem()->SyncWrite( m_pszFilename, m_pData, m_nBytes, false, m_bAppend ) );
+		JobStatus_t retval = BaseFileSystem()->SyncWrite( m_pszFilename, m_pData, m_nBytes, false, m_bAppend );
 
 #if defined( TRACK_BLOCKING_IO )
 		m_Timer.End();
@@ -557,7 +560,7 @@ public:
 		g_nAsyncWriteJobs--;
 	}
 
-	char const	*Describe() const override { return m_pszAppendTo; }
+	char const	*Describe() override { return m_pszAppendTo; }
 
 	bool IsWrite() const override { return true; }
 
@@ -567,7 +570,7 @@ public:
 #if defined( TRACK_BLOCKING_IO )
 		bool oldState = BaseFileSystem()->SetAllowSynchronousLogging( false );
 #endif
-		JobStatus_t retval = to_underlying( BaseFileSystem()->SyncAppendFile( m_pszAppendTo, m_pszAppendFrom ) );
+		JobStatus_t retval = BaseFileSystem()->SyncAppendFile( m_pszAppendTo, m_pszAppendFrom );
 
 #if defined( TRACK_BLOCKING_IO )
 		m_Timer.End();
@@ -608,7 +611,7 @@ public:
 #if defined( TRACK_BLOCKING_IO )
 		bool oldState = BaseFileSystem()->SetAllowSynchronousLogging( false );
 #endif
-		JobStatus_t retval = to_underlying( BaseFileSystem()->SyncGetFileSize( *this ) );
+		JobStatus_t retval = BaseFileSystem()->SyncGetFileSize( *this );
 #if defined( TRACK_BLOCKING_IO )
 		m_Timer.End();
 		FileBlockingItem item( FILESYSTEM_BLOCKING_ASYNCHRONOUS, Describe(), m_Timer.GetDuration().GetSeconds(), FileBlockingItem::FB_ACCESS_SIZE );
@@ -641,7 +644,7 @@ void CBaseFileSystem::InitAsync()
 	if ( VCRGetMode() == VCR_Disabled )
 	{
 		// create the i/o thread pool
-		m_pThreadPool = CreateThreadPool();
+		m_pThreadPool = V_CreateThreadPool();
 
 		ThreadPoolStartParams_t params;
 		// maximum # of async I/O thread on PC is 2

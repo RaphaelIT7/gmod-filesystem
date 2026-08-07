@@ -71,6 +71,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 			defines("SWDS=1")
 		end
 
+		defines("GMOD")
 		defines("NO_VCR")
 
 		-- Filesystem defs
@@ -96,6 +97,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 		filter("system:windows")
 			defines({"IVP_NO_MATH_INL", "COMPILER_MSVC"})
 			disablewarnings({"4101"})
+			files(sourcePath .. "tier0/platform.cpp")
 
 		filter({"system:windows", "platforms:x86_64"})
 			defines({"COMPILER_MSVC64", "WIN64"})
@@ -107,6 +109,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 			defines("PLATFORM_64BITS")
 
 		filter("system:windows")
+			removefiles(sourcePath .. "linux_support.cpp")
 			if HOLYLIB_DEDICATED then
 				defines("DEDICATED")
 			else
@@ -114,6 +117,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 			end
 
 		filter("system:linux")
+			files(sourcePath .. "tier0/platform_posix.cpp")
 			disablewarnings({"unused-variable"})
 			targetextension(".so")
 			links({"dl", "tier0", "pthread"}) -- this fixes the undefined reference to `dlopen' errors.

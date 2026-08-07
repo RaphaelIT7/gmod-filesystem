@@ -41,7 +41,7 @@
 #include "tier0/tslist.h"
 #include "tier1/utlbuffer.h"
 #include "tier1/convar.h"
-#include "tier1/KeyValues.h"
+#include "tier1/keyvalues.h"
 #include "tier1/utllinkedlist.h"
 #include "tier1/utlstring.h"
 #include "tier1/UtlSortVector.h"
@@ -51,6 +51,11 @@
 #include "filesystem/IQueuedLoader.h"
 #include "tier2/tier2.h"
 #include "tier1/characterset.h"
+
+#include "tier0/platform_extra.h"
+#include <sdk_backports.h>
+#undef min
+#undef max
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -1480,11 +1485,11 @@ void CQueuedLoader::AddResourceToTable( const char *pFilename )
 void CQueuedLoader::ParseResourceList( CUtlBuffer &resourceList )
 {
 	// parse resource list into known types
-	constexpr characterset_t breakSet{""};
+	characterset_t breakSet{""};
 	char szToken[MAX_PATH];
 	for ( ;; )
 	{
-		intp nTokenSize = resourceList.ParseToken( &breakSet, szToken );
+		intp nTokenSize = resourceList.ParseToken( &breakSet, szToken, sizeof( szToken ) );
 		if ( nTokenSize <= 0 )
 		{
 			break;

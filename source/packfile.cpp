@@ -13,6 +13,8 @@
 #include "tier1/utlbuffer.h"
 #include "tier1/generichash.h"
 
+#include "sdk_backports.h"
+
 ConVar fs_monitor_read_from_pack( "fs_monitor_read_from_pack", "0", 0, "0:Off, 1:Any, 2:Sync only" );
 
 // How many bytes we should decode at a time when doing pseudo-reads to seek forward in a compressed file handle,
@@ -232,7 +234,7 @@ int CZipPackFile::ReadFromPack( int nEntryIndex, void* pBuffer, int nDestBytes, 
 					{
 						// uncompress directly into caller's buffer
 						// dimhotepus: Add out size to prevent overflows.
-						CLZMA::Uncompress( pPreloadData, pBuffer, nDestBytes );
+						CLZMAExtra::Uncompress( pPreloadData, pBuffer, nDestBytes );
 						return nBytes;
 					}
 
@@ -240,7 +242,7 @@ int CZipPackFile::ReadFromPack( int nEntryIndex, void* pBuffer, int nDestBytes, 
 					CUtlMemory< byte > tempMemory;
 					tempMemory.EnsureCapacity( actualSize );
 					// dimhotepus: Add out size to prevent overflows.
-					CLZMA::Uncompress( pPreloadData, tempMemory.Base(), actualSize );
+					CLZMAExtra::Uncompress( pPreloadData, tempMemory.Base(), actualSize );
 					// copy only what caller expects
 					V_memcpy( pBuffer, tempMemory.Base() + nLocalOffset, nBytes );
 					return nBytes;
@@ -898,7 +900,7 @@ int CLZMAZipPackFileHandle::Read( void* pBuffer, int nDestSize, int nBytes )
 	{
 		// Shift the reused chunk to the front
 		V_memmove( m_BackSeekBuffer.Base(),
-		           m_BackSeekBuffer.Base<unsigned char>() + m_BackSeekBuffer.TellPut() - nReuseBackSeek,
+		           (unsigned char*)m_BackSeekBuffer.Base() + m_BackSeekBuffer.TellPut() - nReuseBackSeek,
 		           nReuseBackSeek );
 	}
 

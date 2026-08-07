@@ -27,7 +27,6 @@
 #include <sys/stat.h>
 
 #include "tier0/threadtools.h"
-#include "tier1/utldict.h"
 
 #elif defined(POSIX)
 	#include <unistd.h> // unlink
@@ -52,6 +51,7 @@
 #include "tier1/utllinkedlist.h"
 #include "tier1/utlstring.h"
 #include "tier1/UtlSortVector.h"
+#include "tier1/utldict.h"
 #include "tier1/tier1.h"
 #include "tier1/strtools.h"
 #include "tier1/byteswap.h"
@@ -239,7 +239,8 @@ public:
 	FileHandle_t		Open( const char *pFileName, const char *pOptions, const char *pathID ) override;
 	FileHandle_t		OpenEx( const char *pFileName, const char *pOptions, unsigned flags = 0, const char *pathID = 0, char **ppszResolvedFilename = NULL ) override;
 	void				Close( FileHandle_t ) override;
-	void				Seek( FileHandle_t file, int pos, FileSystemSeek_t method ) override;
+	// GMOD - pos is a int64/long long
+	void				Seek( FileHandle_t file, long long pos, FileSystemSeek_t method ) override;
 	unsigned int		Tell( FileHandle_t file ) override;
 	unsigned int		Size( FileHandle_t file ) override;
 	unsigned int		Size( const char *pFileName, const char *pPathID ) override;
@@ -280,7 +281,6 @@ public:
 	// path info
 	const char			*GetLocalPath( const char *pFileName, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars ) override;
 	bool				FullPathToRelativePath( const char *pFullpath, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars ) override;
-	bool				GetCaseCorrectFullPath_Ptr( const char *pFullPath, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars ) override;
 
 	// removes a file from disk
 	void				RemoveFile( char const* pRelativePath, const char *pathID ) override;
@@ -301,10 +301,10 @@ public:
 	void				MarkPathIDByRequestOnly( const char *pPathID, bool bRequestOnly ) override;
 
 	bool				FileExists( const char *pFileName, const char *pPathID = NULL ) override;
-	time_t				GetFileTime( const char *pFileName, const char *pPathID = NULL ) override;
+	long				GetFileTime( const char *pFileName, const char *pPathID = NULL ) override;
 	bool				IsFileWritable( char const *pFileName, const char *pPathID = NULL ) override;
 	bool				SetFileWritable( char const *pFileName, bool writable, const char *pPathID = 0 ) override;
-	void				FileTimeToString( OUT_Z_CAP(maxChars) char *pString, intp maxChars, time_t fileTime ) override;
+	void				FileTimeToString( OUT_Z_CAP(maxChars) char *pString, int maxChars, long fileTime ) override;
 	
 	const char			*FindFirst( const char *pWildCard, FileFindHandle_t *pHandle ) override;
 	const char			*FindFirstEx( const char *pWildCard, const char *pPathID, FileFindHandle_t *pHandle ) override;
@@ -330,9 +330,9 @@ public:
 
 	FileNameHandle_t	FindOrAddFileName( char const *pFileName ) override;
 	FileNameHandle_t	FindFileName( char const *pFileName ) override;
-	bool				String( const FileNameHandle_t& handle, OUT_Z_CAP(buflen) char *buf, intp buflen ) override;
+	bool				String( const FileNameHandle_t& handle, OUT_Z_CAP(buflen) char *buf, int buflen ) override;
 	int					GetPathIndex( const FileNameHandle_t &handle ) override;
-	time_t				GetPathTime( const char *pFileName, const char *pPathID ) override;
+	long				GetPathTime( const char *pFileName, const char *pPathID ) override;
 	
 	void				EnableWhitelistFileTracking( bool bEnable, bool bCacheAllVPKHashes, bool bRecalculateAndCheckHashes ) override;
 	void				RegisterFileWhitelist( IPureServerWhitelist *pWhiteList, IFileList **ppFilesToReload ) override;
@@ -401,7 +401,7 @@ public:
 	const char			*RelativePathToFullPath( const char *pFileName, const char *pPathID, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars, PathTypeFilter_t pathFilter = FILTER_NONE, PathTypeQuery_t *pPathType = NULL ) override;
 
 	// Returns the search path, each path is separated by ;s. Returns the length of the string returned
-	int					GetSearchPath( const char *pathID, bool bGetPackFiles, OUT_Z_CAP(maxLenInChars) char *pDest, intp maxLenInChars ) override;
+	int					GetSearchPath( const char *pathID, bool bGetPackFiles, OUT_Z_CAP(maxLenInChars) char *pDest, int maxLenInChars ) override;
 
 #if defined( TRACK_BLOCKING_IO )
 	void				EnableBlockingFileAccessTracking( bool state ) override;
