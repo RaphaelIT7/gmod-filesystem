@@ -39,18 +39,27 @@ Detouring::Hook detour_CreateInterface;
 void* hook_CreateInterface( const char *pName, int *pReturnCode )
 {
 	if ( ( strcmp( pName, FILESYSTEM_INTERFACE_VERSION ) == 0 || strcmp( pName, BASEFILESYSTEM_INTERFACE_VERSION ) == 0 ) && filesystem_stdioFn )
-		return filesystem_stdioFn(pName, pReturnCode);
+	{
+		printf( "Returning our FileSystem!\n" );
+		return filesystem_stdioFn( pName, pReturnCode );
+	}
 
+	printf( "Dedicated will return for %s\n", pName );
 	return detour_CreateInterface.GetTrampoline<CreateInterfaceFn>()( pName, pReturnCode );
 }
 
+using FinSystemFunc = void* (*)( void* _this, const char* pName );
 Detouring::Hook detour_AppSystemCreateInterface;
-void* hook_AppSystemCreateInterface( const char *pName, int *pReturnCode )
+void* hook_AppSystemCreateInterface( void* _this, const char *pName )
 {
 	if ( ( strcmp( pName, FILESYSTEM_INTERFACE_VERSION ) == 0 || strcmp( pName, BASEFILESYSTEM_INTERFACE_VERSION ) == 0 ) && filesystem_stdioFn )
-		return filesystem_stdioFn( pName, pReturnCode );
+	{
+		printf( "Returning our FileSystem!\n" );
+		return filesystem_stdioFn( pName, nullptr );
+	}
 
-	return detour_AppSystemCreateInterface.GetTrampoline<CreateInterfaceFn>()( pName, pReturnCode );
+	printf( "Dedicated will return for %s\n", pName );
+	return detour_AppSystemCreateInterface.GetTrampoline<FinSystemFunc>()( _this, pName );
 }
 
 using FSReturnCode_t = int;
@@ -105,7 +114,7 @@ void Load()
 			printf( "Failed to find dedicated %s!\n", CREATEINTERFACE_PROCNAME );
 
 		// Can be found using "System (%s) failed during stage %s\n" (CAppSystemGroup::ReportStartupFailure -> CAppSystemGroup::ConnectSystems)
-		Symbol AppSystemCreateInterfaceFnSym = Symbol::FromName( "_Z26AppSystemCreateInterfaceFnPKcPi" );
+		Symbol AppSystemCreateInterfaceFnSym = Symbol::FromName( "_ZN15CAppSystemGroup10FindSystemEPKc" );
 		// Can be found using "Should not be using filesystem_steam anymore!"
 		Symbol FileSystem_MountContentSym = Symbol::FromName( "_Z23FileSystem_MountContentR19CFSMountContentInfo" );
 
