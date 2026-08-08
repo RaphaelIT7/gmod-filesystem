@@ -1,5 +1,3 @@
-#pragma once
-
 #include "public/IGameDepotSystem.h"
 #include "GameDepotSystem.h"
 #include <stdlib.h>
@@ -11,8 +9,10 @@
 #include "public/IGet.h"
 #include "steam_api.h"
 
-static const std::vector<IGameDepotSystem::Information>& MountableGames() {
-	static const std::vector<IGameDepotSystem::Information> mountableGames = {
+static const std::vector<IGameDepotSystem::Information>& MountableGames()
+{
+	static const std::vector<IGameDepotSystem::Information> mountableGames =
+	{
 		{ 220,     0, "Half-Life 2 & Episodes",            "hl2",               false, false, false, false, true,  true  },
 		{ 240,     0, "Counter-Strike: Source",            "cstrike",           false, false, false, false, true,  true  },
 		{ 440,     0, "Team Fortress 2",                   "tf",                false, false, false, false, true,  false },
@@ -44,48 +44,60 @@ static const std::vector<IGameDepotSystem::Information>& MountableGames() {
 		{ 1012110, 0, "Military Conflict: Vietnam",        "treason",           false, false, false, false, true,  false },
 		{ 362890,  0, "Black Mesa",                        "bms",               false, false, false, false, true,  false },
 	};
+
 	return mountableGames;
 }
 
-void GameDepot::System::Refresh() {
+void GameDepot::System::Refresh()
+{
 	m_RefreshCount++;
 	Clear();
 	Load();
 
-	for (auto& v : m_MountedGames) {
-		if (v.owned && v.installed && v.mounted) {
-			Mount(&v, false);
-		}
-		else if (v.retail) {
+	for ( auto &v : m_MountedGames )
+	{
+		if ( v.owned && v.installed && v.mounted )
+			Mount( &v, false);
+		else if ( v.retail )
 			MountAsFallback(&v);
-		}
 	}
 }
 
-void GameDepot::System::Clear() {
+void GameDepot::System::Clear()
+{
 	Load(); // Yeah?
-	Msg("GameDepot::System::Clear()\n");
+	Msg( "GameDepot::System::Clear()\n" );
 }
 
-void GameDepot::System::SetMount(uint32_t param_1, bool param_2) {
-	for (auto& v : m_MountedGames) {
-		if (v.appid == param_1) {
-			if (v.mounted != param_2)
-				m_RefreshCount++;
-			v.mounted = param_2;
-		}
+void GameDepot::System::SetMount( uint32_t nAppID, bool bMounted )
+{
+	for ( auto &v : m_MountedGames )
+	{
+		if (v.appid != nAppID)
+			continue;
+
+		if (v.mounted != bMounted)
+			m_RefreshCount++;
+
+		v.mounted = bMounted;
+		break;
 	}
 }
 
-void GameDepot::System::MarkGameAsMounted(const std::string param_1) {
-	for (auto& v : m_MountedGames) {
-		if (v.folder == param_1) {
+void GameDepot::System::MarkGameAsMounted( const std::string strGameFolder )
+{
+	for ( auto& v : m_MountedGames )
+	{
+		if ( v.folder == strGameFolder )
+		{
 			v.mounted = true;
+			break;
 		}
 	}
 }
 
-const std::list<IGameDepotSystem::Information>& GameDepot::System::GetList() {
+const std::list<IGameDepotSystem::Information> &GameDepot::System::GetList()
+{
 	return m_MountedGames;
 }
 
@@ -94,44 +106,50 @@ int GameDepot::System::GetRefreshCount()
 	return m_RefreshCount;
 }
 
-GameDepot::System::System() : m_MountedGames() {
+GameDepot::System::System() : m_MountedGames()
+{
 	m_RefreshCount = 0;
-	Msg("GameDepot_System()\n");
+	Msg( "GameDepot_System()\n" );
 
 	m_MountedGames.clear();
 	// Copy mountableGames -> m_MountedGames
-	const std::vector<Information>& mountableGames = MountableGames();
-	for (size_t i = 0; i < mountableGames.size(); i++) 
-		m_MountedGames.push_back(mountableGames[i]);
+	const std::vector<Information> &mountableGames = MountableGames();
+	for ( size_t i = 0; i < mountableGames.size(); ++i ) 
+		m_MountedGames.push_back( mountableGames[i] );
 }
 
-void GameDepot::System::FindGame(std::string* param_1) {
-	Msg("GameDepot::System::FindGame()\n");
+void GameDepot::System::FindGame( std::string* param_1 )
+{
+	Msg( "GameDepot::System::FindGame()\n" );
 }
 
-bool GameDepot::System::MountAsSteampipe(Information* param_1, bool param_2) {
-	Msg("GameDepot::System::MountAsSteampipe()\n");
+bool GameDepot::System::MountAsSteampipe( Information* param_1, bool param_2 )
+{
+	Msg( "GameDepot::System::MountAsSteampipe()\n" );
 	return true; // TODO
 	// ^^ I think this is the process of mounting VPK's
 }
 
-void GameDepot::System::Mount(Information* mountGameInfo, bool mount) {
-	DevMsg("Mounting game '%s' (%s, %i)...\n",
-		mountGameInfo->title.c_str(), mountGameInfo->folder.c_str(), mountGameInfo->appid);
+void GameDepot::System::Mount( Information *mountGameInfo, bool mount )
+{
+	DevMsg( "Mounting game '%s' (%s, %i)...\n",
+		mountGameInfo->title.c_str(), mountGameInfo->folder.c_str(), mountGameInfo->appid );
 
-	if (MountAsSteampipe(mountGameInfo, mount))  
+	if ( MountAsSteampipe( mountGameInfo, mount) )  
 		return;
 
-	if (mountGameInfo->folder == "hl2")           
+	if (mountGameInfo->folder == "hl2")
 		return;
 
-	if (mount) {
-		g_pFullFileSystem->AddSearchPath(mountGameInfo->folder.c_str(), "GAME", 15);
-		g_pFullFileSystem->AddSearchPath(mountGameInfo->folder.c_str(), mountGameInfo->folder.c_str(), 14);
+	if (mount)
+	{
+		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_CURRENTGAME ) );
+		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), mountGameInfo->folder.c_str(), PRIORITY_GROUP_HEAD( GN_CURRENTGAME ) );
 	}
-	else {
-		g_pFullFileSystem->AddSearchPath(mountGameInfo->folder.c_str(), "GAME", 21);
-		g_pFullFileSystem->AddSearchPath(mountGameInfo->folder.c_str(), mountGameInfo->folder.c_str(), 20);
+	else
+	{
+		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
+		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), mountGameInfo->folder.c_str(), PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) );
 	}
 
 	g_pFullFileSystem->MarkPathIDByRequestOnly(mountGameInfo->folder.c_str(), true);
@@ -140,64 +158,75 @@ void GameDepot::System::Mount(Information* mountGameInfo, bool mount) {
 		g_pFullFileSystem->AddSearchPath("pak01", mountGameInfo->folder.c_str(), 21);
 }
 
-void GameDepot::System::MountAsFallback(Information* param_1) {
-	DevMsg("Mounting game '%s' as fallback (%s, %i)...\n", param_1->title.c_str(), param_1->folder.c_str(), param_1->appid);
+void GameDepot::System::MountAsFallback( Information *info )
+{
+	DevMsg("Mounting game '%s' as fallback (%s, %i)...\n", info->title.c_str(), info->folder.c_str(), info->appid);
 
 	std::string path = get->GameDir();
 	path += "\\sourceengine\\";
 	path += "content_";
-	path += param_1->title.c_str();
+	path += info->title.c_str();
 	path += ".vpk";
 
-	g_pFullFileSystem->AddSearchPath(path.c_str(), "GAME", 21);
-	g_pFullFileSystem->AddSearchPath(path.c_str(), param_1->folder.c_str(), 21);
-	g_pFullFileSystem->MarkPathIDByRequestOnly(param_1->folder.c_str(), true);
+	g_pFullFileSystem->AddSearchPath( path.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
+	g_pFullFileSystem->AddSearchPath( path.c_str(), info->folder.c_str(), PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
+	g_pFullFileSystem->MarkPathIDByRequestOnly( info->folder.c_str(), true );
 }
 
 #define GAMEDEPOTSYSTEM "gamedepotsystem"
+void GameDepot::System::Load()
+{
+	KeyValues* kv = new KeyValues( GAMEDEPOTSYSTEM );
+	RunCodeAtScopeExit( kv->deleteThis(); );
 
-void GameDepot::System::Load() {
-	KeyValues* kv = new KeyValues(GAMEDEPOTSYSTEM); RunCodeAtScopeExit(kv->deleteThis(););
-
-	for (auto& v : m_MountedGames) {
-		v.owned = get->SteamApps()->BIsSubscribedApp(v.appid);
-		v.installed = get->SteamApps()->BIsAppInstalled(v.appid);
+	for ( auto &v : m_MountedGames )
+	{
+		v.owned = get->SteamApps()->BIsSubscribedApp( v.appid );
+		v.installed = get->SteamApps()->BIsAppInstalled( v.appid );
 	}
 
-	if (!g_pFullFileSystem->FileExists("cfg/mountdepots.txt", "DEFAULT_WRITE_PATH")) {
+	if ( !g_pFullFileSystem->FileExists( "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH" ) )
+	{
 		Save();
 		return;
 	}
 
-	kv->LoadFromFile(g_pFullFileSystem, "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH");
+	kv->LoadFromFile( g_pFullFileSystem, "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH" );
 
-	for (auto& v : m_MountedGames)
+	for ( auto& v : m_MountedGames )
 		v.mounted = false;
 
-	for (KeyValues* pKv = kv->GetFirstSubKey(); pKv; pKv = pKv->GetNextKey()) {
-		for (auto& v : m_MountedGames) {
-			if (!strcmp(v.folder.c_str(), pKv->GetName())) {
-				if (pKv->GetInt())
+	for ( KeyValues* pKv = kv->GetFirstSubKey(); pKv; pKv = pKv->GetNextKey() )
+	{
+		for ( auto& v : m_MountedGames)
+		{
+			if ( !strcmp( v.folder.c_str(), pKv->GetName() ) )
+			{
+				if ( pKv->GetInt() )
 					v.mounted = true;
 			}
 		}
 	}
 }
 
-void GameDepot::System::Save() {
-	KeyValues* kv = new KeyValues(GAMEDEPOTSYSTEM); RunCodeAtScopeExit(kv->deleteThis(););
+void GameDepot::System::Save()
+{
+	KeyValues* kv = new KeyValues( GAMEDEPOTSYSTEM );
+	RunCodeAtScopeExit( kv->deleteThis(); );
 
-	for (auto& v : m_MountedGames) {
-		if (v.mounted)
-			kv->SetInt(v.folder.c_str(), 1);
+	for ( auto& v : m_MountedGames )
+	{
+		if ( v.mounted )
+			kv->SetInt( v.folder.c_str(), 1 );
 	}
 
-	kv->SaveToFile(g_pFullFileSystem, "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH");
+	kv->SaveToFile( g_pFullFileSystem, "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH" );
 }
 
 #undef GAMEDEPOTSYSTEM
 
-void GameDepot::System::Setup() {
+void GameDepot::System::Setup()
+{
 	Load();
 	// ??????????????????????
 	// I really think this is incorrect.. those don't even fit in the enum.

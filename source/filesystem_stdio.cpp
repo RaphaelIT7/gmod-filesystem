@@ -565,7 +565,7 @@ int CFileSystem_Stdio::FS_chmod( const char *pathT, int pmode )
 	char path[ MAX_PATH ];
 	CBaseFileSystem::FixUpPath ( pathT, path );
 
-	const int rt = _chmod( path, pmode );
+	int rt = _chmod( path, pmode );
 #if defined(LINUX)
 	if ( rt == -1 )
 	{
@@ -761,10 +761,10 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 	}
 #endif  // LINUX
 
+	struct _stat buf;
 	if (pFile && size)
 	{
 		// todo: replace with filelength()? 
-		struct _stat buf;
 		int rt = _stat( filename, &buf );
 		if (rt == 0)
 		{

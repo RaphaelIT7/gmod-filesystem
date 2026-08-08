@@ -2,6 +2,7 @@
 
 #include "garrysmod/public/IAddonSystem.h"
 #include "steam/isteamugc.h"
+#include "unordered_stuff.h"
 
 namespace Addon
 {
@@ -51,7 +52,7 @@ private:
 	std::list<IAddonSystem::Information> m_Addons;
 	std::list<IAddonSystem::UGCInfo> m_UgcAddons;
 	std::list<SteamUGCDetails_t> m_Subscriptions;
-	std::vector<std::string> m_AddonNoMount;
+	unordered_set<uint64_t> m_AddonNoMount;
 	IAddonDownloadNotification* m_pDownloadNotify = nullptr;
 };
 

@@ -13,7 +13,7 @@ public: // IGameDepotSystem
 	void Save() override;
 	void SetMount(uint32_t param_1, bool param_2) override;
 	void MarkGameAsMounted(const std::string)  override;
-	const std::list<IGameDepotSystem::Information>& GetList() override;
+	const std::list<IGameDepotSystem::Information> &GetList() override;
 	int GetRefreshCount() override;
 
 public: // System

@@ -20,10 +20,12 @@ public:
 	const std::list<IGamemodeSystem::Information> &GetList( ) const override;
 	bool IsServerBlacklisted( char const* address, char const* hostname, char const* description, char const* gm, char const* map ) override;
 
+public:
+	System();
+
 private:
 	friend class CBaseFileSystem;
 
-	System();
 	bool ChangeGamemode( const std::string& strGamemode, bool bRestore );
 	void AddGamemode( std::string strGamemode );
 

@@ -3,6 +3,7 @@
 #include "garrysmod/public/IGet.h"
 #include "tier1/keyvalues.h"
 #include "filesystem.h"
+#include <charconv>
 
 void Addon::FileSystem::Clear()
 {
@@ -26,8 +27,8 @@ int Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::s
 bool Addon::FileSystem::ShouldMount( uint64_t wsid )
 {
 	Msg( "Addon::FileSystem::ShouldMount2 %llu\n", wsid );
-	auto itr = std::find( m_AddonNoMount.begin(), m_AddonNoMount.end(), std::to_string( wsid ) );
-	if ( itr != m_AddonNoMount.end() )
+	auto it = m_AddonNoMount.find( wsid );
+	if ( it != m_AddonNoMount.end() )
 		return false;
 
 	for ( IAddonSystem::Information info : m_Addons )
@@ -45,13 +46,13 @@ void Addon::FileSystem::SetShouldMount( uint64_t wsid, bool bShouldMount )
 {
 	Msg( "Addon::FileSystem::SetShouldMount\n" );
 
-	auto itr = std::find( m_AddonNoMount.begin(), m_AddonNoMount.end(), std::to_string( wsid ) );
-	if (itr != m_AddonNoMount.end())
+	auto it = m_AddonNoMount.find( wsid );
+	if (it != m_AddonNoMount.end())
 	{
 		if (bShouldMount)
-			m_AddonNoMount.erase(itr);
+			m_AddonNoMount.erase(it);
 	} else if (!bShouldMount)
-		m_AddonNoMount.push_back( std::to_string( wsid ) );
+		m_AddonNoMount.insert( wsid );
 }
 
 void Addon::FileSystem::Save()
@@ -60,13 +61,21 @@ void Addon::FileSystem::Save()
 	KeyValues* list = kv->CreateNewKey();
 
 	int i = 0;
-	for ( std::string wsid : m_AddonNoMount )
+	char szIDBuffer[21];
+	char szWSIDBuffer[21];
+	for ( auto wsid : m_AddonNoMount )
 	{
 		++i;
-		list->SetString( std::to_string( i ).c_str(), wsid.c_str() );
+		auto [wsPtr, _] = std::to_chars( szWSIDBuffer, szWSIDBuffer + sizeof( szWSIDBuffer ) - 1, wsid );
+		*wsPtr = '\0';
+
+		auto [idPtr, _2] = std::to_chars( szIDBuffer, szIDBuffer + sizeof( szIDBuffer ) - 1, i );
+		*idPtr = '\0';
+
+		list->SetString( szIDBuffer, szWSIDBuffer );
 	}
 
-	//kv->SaveToFile( g_pFullFileSystem, "cfg/addonnomount.txt", "DEFAULT_WRITE_PATH" ); // BUG: It crashes here
+	kv->SaveToFile( g_pFullFileSystem, "cfg/addonnomount.txt", "DEFAULT_WRITE_PATH" );
 	kv->deleteThis();
 
 	Msg( "CAddonFileSystem::Save\n" );
@@ -147,7 +156,8 @@ void Addon::FileSystem::ClearUnusedGMAs()
 const std::string& Addon::FileSystem::GetAddonFilepath( uint64_t wsid, bool )
 {
 	Msg( "Addon::FileSystem::GetAddonFilepath\n" );
-	return "";
+	static std::string empty = "";
+	return empty;
 }
 
 void Addon::FileSystem::UnmountAddon( uint64_t wsid, const char *pszUnknown )

@@ -82,7 +82,7 @@ int FillDataStruct( FIND_DATA *dat )
 	char szFullPath[MAX_PATH];
 	V_sprintf_safe( szFullPath, "%s/%s", dat->cBaseDir, name->d_name );  
 
-	stat fileStat;
+	struct stat fileStat;
 	dat->dwFileAttributes = !stat( szFullPath, &fileStat ) ? fileStat.st_mode : 0;           
 
 	// now just put the filename in the output data
@@ -121,7 +121,7 @@ HANDLE FindFirstFile( const char *fileName, FIND_DATA *dat )
 				dir = nameStore;
 			}
 			
-			stat dirChk;
+			struct stat dirChk;
 			if (stat(dir, &dirChk) < 0)
 			{
 				continue;

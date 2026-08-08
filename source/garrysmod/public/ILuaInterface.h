@@ -4,9 +4,15 @@
 #include <string>
 #include <mathlib/vector.h>
 #include <convar.h>
+#ifndef GMOD
 #define GMOD
+#define GMOD_UNDEFME
+#endif
 #include "GarrysMod/Lua/Types.h"
+#if GMOD_UNDEFME
 #undef GMOD
+#undef GMOD_UNDEFME
+#endif
 
 class CCommand;
 struct lua_Debug;

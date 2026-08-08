@@ -2,10 +2,10 @@
 #include "filesystem.h"
 #include "convar.h"
 #include "garrysmod/public/IGet.h"
-#include "GarrysMod/public/ILuaShared.h"
-#include "GarrysMod/public/ILuaInterface.h"
+#include "garrysmod/public/ILuaShared.h"
+#include "garrysmod/public/ILuaInterface.h"
 #include "tier1/utlbuffer.h"
-#include "bootil/Bootil.h"
+#include "Bootil/Bootil.h"
 #include <string>
 #include <codecvt>
 #include <locale>

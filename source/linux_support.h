@@ -9,9 +9,15 @@
 
 #include <climits> // PATH_MAX define 
 #include <dirent.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <time.h>
 
 #include "tier0/annotations.h"
 #include "tier0/platform.h"
+
+#include <sdk_backports.h>
 
 #define FILE_ATTRIBUTE_DIRECTORY S_IFDIR
 

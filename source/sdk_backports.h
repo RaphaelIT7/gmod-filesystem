@@ -168,6 +168,24 @@ template<size_t size>
 template<size_t size>
 [[nodiscard]] constexpr inline bool Q_isempty(IN_Z_ARRAY wchar_t (&v)[size]) { return v[0] == L'\0'; }
 
+// dimhotepus: Correctly work with signed/unsigned char.
+[[nodiscard]] inline char V_toupper(char ch)
+{
+	constexpr auto zMinusA = static_cast<unsigned char>('z' - 'a');
+	constexpr auto aMinusA = static_cast<unsigned char>('a' - 'A');
+
+	const auto uch = static_cast<unsigned char>(ch);
+
+	if (static_cast<unsigned char>(uch - static_cast<unsigned char>('a')) <=
+		zMinusA)
+		return static_cast<char>(uch - aMinusA);
+
+	if (uch >= 0x80)  // non-ASCII, fall back to CRT
+		return static_cast<char>(std::toupper(uch));
+
+	return ch;
+}
+
 // If pPath is a relative path, this function makes it into an absolute path
 // using the current working directory as the base, or pStartingDir if it's non-nullptr.
 // Returns false if it runs out of room in the string, or if pPath tries to ".." past the root directory.

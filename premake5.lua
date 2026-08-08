@@ -125,4 +125,4 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 			disablewarnings({"unused-variable"})
 			targetextension(".so")
 			links({"dl", "tier0", "pthread"}) -- this fixes the undefined reference to `dlopen' errors.
-			defines("DEDICATED") -- All linux build focus Linux dedicated servers.
+			defines({"DEDICATED", "POSIX"}) -- All linux build focus Linux dedicated servers.
