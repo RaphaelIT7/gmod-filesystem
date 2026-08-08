@@ -227,18 +227,13 @@ CBaseFileSystem *BaseFileSystem_Stdio()
 	return &g_FileSystem_Stdio;
 }
 #endif
- 
-#ifdef DEDICATED // "hack" to allow us to not export a stdio version of the FILESYSTEM_INTERFACE_VERSION anywhere
 
-IFileSystem *g_pFileSystem = &g_FileSystem_Stdio;
-IBaseFileSystem *g_pBaseFileSystem = &g_FileSystem_Stdio;
-
-#else
+// RaphaelIT7:
+// Normally the Filesystem is embedded into the dedicated_srv.so
+// But we don't do that. We rely on the GhostInj to hook into there and redirect to us
 
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CFileSystem_Stdio, IFileSystem, FILESYSTEM_INTERFACE_VERSION, g_FileSystem_Stdio );
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CFileSystem_Stdio, IBaseFileSystem, BASEFILESYSTEM_INTERFACE_VERSION, g_FileSystem_Stdio );
-
-#endif
 
 //-----------------------------------------------------------------------------
 

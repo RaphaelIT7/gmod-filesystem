@@ -32,18 +32,49 @@ CreateInterfaceFn filesystem_stdioFn = nullptr;
 
 // If we include filesystem.h we would need to also compile tier0? which I do not want...
 #define FILESYSTEM_INTERFACE_VERSION			"VFileSystem022"
+// Hammer uses this one
+#define BASEFILESYSTEM_INTERFACE_VERSION		"VBaseFileSystem011"
 
 Detouring::Hook detour_CreateInterface;
-void* CreateInterface(const char *pName, int *pReturnCode)
+void* hook_CreateInterface( const char *pName, int *pReturnCode )
 {
-	if (strcmp(pName, FILESYSTEM_INTERFACE_VERSION) && filesystem_stdioFn)
+	if ( ( strcmp( pName, FILESYSTEM_INTERFACE_VERSION ) == 0 || strcmp( pName, BASEFILESYSTEM_INTERFACE_VERSION ) == 0 ) && filesystem_stdioFn )
 		return filesystem_stdioFn(pName, pReturnCode);
 
-	return detour_CreateInterface.GetTrampoline<CreateInterfaceFn>()(pName, pReturnCode);
+	return detour_CreateInterface.GetTrampoline<CreateInterfaceFn>()( pName, pReturnCode );
+}
+
+Detouring::Hook detour_AppSystemCreateInterface;
+void* hook_AppSystemCreateInterface( const char *pName, int *pReturnCode )
+{
+	if ( ( strcmp( pName, FILESYSTEM_INTERFACE_VERSION ) == 0 || strcmp( pName, BASEFILESYSTEM_INTERFACE_VERSION ) == 0 ) && filesystem_stdioFn )
+		return filesystem_stdioFn( pName, pReturnCode );
+
+	return detour_AppSystemCreateInterface.GetTrampoline<CreateInterfaceFn>()( pName, pReturnCode );
+}
+
+using FSReturnCode_t = int;
+class IFileSystem;
+class CFSMountContentInfo
+{
+public:
+	bool				m_bToolsMode;
+	const char			*m_pDirectoryName;
+	IFileSystem			*m_pFileSystem;
+};
+
+Detouring::Hook detour_FileSystem_MountContent;
+using FileSystem_MountContentFunc = FSReturnCode_t (*)( CFSMountContentInfo &mountContentInfo );
+FSReturnCode_t hook_FileSystem_MountContent( CFSMountContentInfo &mountContentInfo )
+{
+	int pReturnCode = 0;
+	mountContentInfo.m_pFileSystem = (IFileSystem*)filesystem_stdioFn( FILESYSTEM_INTERFACE_VERSION, &pReturnCode );
+	printf( "CFSMountContentInfo.m_pFileSystem = %p\n", mountContentInfo.m_pFileSystem );
+
+	return detour_FileSystem_MountContent.GetTrampoline<FileSystem_MountContentFunc>()( mountContentInfo );
 }
 
 DLL_Handle ghostinj2 = NULL;
-SymbolFinder symfinder;
 typedef void ( *plugin_main )();
 void Load()
 {
@@ -52,22 +83,60 @@ void Load()
 	filesystem_stdio = DLL_LoadModule( "filesystem_stdio_new" DLL_EXTENSION, RTLD_NOW );
 	if ( filesystem_stdio )
 	{
-		Symbol CreateInterfaceSym = Symbol::FromName( CREATEINTERFACE_PROCNAME );
-		filesystem_stdioFn = (CreateInterfaceFn)symfinder.Resolve( filesystem_stdio, CreateInterfaceSym.name.c_str(), CreateInterfaceSym.length );
+		filesystem_stdioFn = (CreateInterfaceFn)DLL_GetAddress( filesystem_stdio, CREATEINTERFACE_PROCNAME );
+
+		void* pFileSystem = filesystem_stdioFn( FILESYSTEM_INTERFACE_VERSION, nullptr );
+		printf( "pFileSystem = %p\n", pFileSystem );
 
 		printf( "Found and loaded filesystem_stdio_new%s\n", DLL_EXTENSION );
 		SourceSDK::FactoryLoader dedicated_loader( "dedicated" );
-		void* CreateInterfaceFnAddr = symfinder.Resolve( dedicated_loader.GetModule(), CreateInterfaceSym.name.c_str(), CreateInterfaceSym.length );
+		void* CreateInterfaceFnAddr = DLL_GetAddress( dedicated_loader.GetModule(), CREATEINTERFACE_PROCNAME );
 		if ( CreateInterfaceFnAddr )
 		{
-			detour_CreateInterface.Create( CreateInterfaceFnAddr, (void*)CreateInterface );
+			detour_CreateInterface.Create( CreateInterfaceFnAddr, (void*)hook_CreateInterface );
 			if ( detour_CreateInterface.IsValid() )
+			{
 				detour_CreateInterface.Enable();
+				printf( "Successfully detoured dedicated %s!\n", CREATEINTERFACE_PROCNAME );
+			}
 			else
 				printf( "Failed to detour dedicated %s!\n", CREATEINTERFACE_PROCNAME );
-		} else {
+		} else
 			printf( "Failed to find dedicated %s!\n", CREATEINTERFACE_PROCNAME );
-		}
+
+		// Can be found using "System (%s) failed during stage %s\n" (CAppSystemGroup::ReportStartupFailure -> CAppSystemGroup::ConnectSystems)
+		Symbol AppSystemCreateInterfaceFnSym = Symbol::FromName( "_Z26AppSystemCreateInterfaceFnPKcPi" );
+		// Can be found using "Should not be using filesystem_steam anymore!"
+		Symbol FileSystem_MountContentSym = Symbol::FromName( "_Z23FileSystem_MountContentR19CFSMountContentInfo" );
+
+		SymbolFinder symfinder;
+		void* AppSystemCreateInterfaceFnAddr = symfinder.Resolve( dedicated_loader.GetModule(), AppSystemCreateInterfaceFnSym.name.c_str(), AppSystemCreateInterfaceFnSym.length );
+		if ( AppSystemCreateInterfaceFnAddr )
+		{
+			detour_AppSystemCreateInterface.Create( AppSystemCreateInterfaceFnAddr, (void*)hook_AppSystemCreateInterface );
+			if ( detour_AppSystemCreateInterface.IsValid() )
+			{
+				detour_AppSystemCreateInterface.Enable();
+				printf( "Successfully detoured dedicated AppSystemCreateInterfaceFn!\n" );
+			}
+			else
+				printf( "Failed to detour dedicated AppSystemCreateInterfaceFn!\n" );
+		} else
+			printf( "Failed to find dedicated AppSystemCreateInterfaceFn!\n" );
+
+		void* FileSystem_MountContentAddr = symfinder.Resolve( dedicated_loader.GetModule(), FileSystem_MountContentSym.name.c_str(), FileSystem_MountContentSym.length );
+		if ( FileSystem_MountContentAddr )
+		{
+			detour_FileSystem_MountContent.Create( FileSystem_MountContentAddr, (void*)hook_FileSystem_MountContent );
+			if ( detour_FileSystem_MountContent.IsValid() )
+			{
+				detour_FileSystem_MountContent.Enable();
+				printf( "Successfully detoured dedicated FileSystem_MountContentAddr!\n" );
+			}
+			else
+				printf( "Failed to detour dedicated FileSystem_MountContentAddr!\n" );
+		} else
+			printf( "Failed to find dedicated FileSystem_MountContentAddr!\n" );
 	}
 
 	ghostinj2 = DLL_LoadModule( "ghostinj2.dll", RTLD_NOW );
