@@ -39,10 +39,10 @@
 IGet* get = nullptr;
 #include <system_error>
 #include <Bootil/Bootil.h>
+#include <garrysmod/public/IGameDepotSystem.h>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
-#include <garrysmod/public/IGameDepotSystem.h>
 
 
 ConVar fs_report_sync_opens( "fs_report_sync_opens", "0", 0, "0:Off, 1:Blocking only, 2:All" );
