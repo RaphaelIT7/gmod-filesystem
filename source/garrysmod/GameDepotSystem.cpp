@@ -59,18 +59,15 @@ void GameDepot::System::MarkGameAsMounted(const std::string param_1) {
 	Msg("GameDepot::System::MarkGameAsMounted()\n");
 }
 
-const std::list<IGameDepotSystem::Information>& GameDepot::System::GetList() const {
+const std::list<IGameDepotSystem::Information>& GameDepot::System::GetList() {
 	Msg("GameDepot::System::GetList()\n");
 	static const std::list<IGameDepotSystem::Information> empty;
 	return empty;
 }
 
-void GameDepot::System::MountAsMapFix(uint32_t param_1) {
-	Msg("GameDepot::System::MountAsMapFix()\n");
-}
-
-void GameDepot::System::MountCurrentGame(const std::string& param_1) {
-	Msg("GameDepot::System::MountCurrentGame()\n");
+int GameDepot::System::GetRefreshCount()
+{
+	return 0;
 }
 
 GameDepot::System::System() {

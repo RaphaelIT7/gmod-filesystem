@@ -1,7 +1,7 @@
 #include "GamemodeSystem.h"
 #include "filesystem.h"
 #include "public/IGet.h"
-#include "garrysmod/IMenuSystem.h"
+#include "garrysmod/public/IMenuSystem.h"
 #include "keyvalues.h"
 #include <sdk_backports.h>
 
