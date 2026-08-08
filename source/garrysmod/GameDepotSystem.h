@@ -24,6 +24,9 @@ public: // System
 	void MountAsFallback(Information* param_1);
 	void Load();
 	void Setup();
+
+	std::list<IGameDepotSystem::Information> m_MountedGames;
+	int m_RefreshCount;
 };
 
 }

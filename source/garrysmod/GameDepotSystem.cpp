@@ -5,6 +5,11 @@
 #include <stdlib.h>
 #include <basetypes.h>
 #include "tier0/dbg.h"
+#include "tier1/keyvalues.h"
+#include "filesystem.h"
+#include <sdk_backports.h>
+#include "public/IGet.h"
+#include "steam_api.h"
 
 IGameDepotSystem::Information mountableGames[] = {
 	{ 220,     0, "Half-Life 2 & Episodes",            "hl2",               false, false, false, false, true,  true  },
@@ -40,15 +45,15 @@ IGameDepotSystem::Information mountableGames[] = {
 };
 
 void GameDepot::System::Refresh() {
+	m_RefreshCount++;
+	Clear();
+	Load();
 	Msg("GameDepot::System::Refresh()\n");
 }
 
 void GameDepot::System::Clear() {
 	Msg("GameDepot::System::Clear()\n");
-}
-
-void GameDepot::System::Save() {
-	Msg("GameDepot::System::Save()\n");
+	m_MountedGames.clear();
 }
 
 void GameDepot::System::SetMount(uint32_t param_1, bool param_2) {
@@ -61,16 +66,16 @@ void GameDepot::System::MarkGameAsMounted(const std::string param_1) {
 
 const std::list<IGameDepotSystem::Information>& GameDepot::System::GetList() {
 	Msg("GameDepot::System::GetList()\n");
-	static const std::list<IGameDepotSystem::Information> empty;
-	return empty;
+	return m_MountedGames;
 }
 
 int GameDepot::System::GetRefreshCount()
 {
-	return 0;
+	return m_RefreshCount;
 }
 
-GameDepot::System::System() {
+GameDepot::System::System() : m_MountedGames() {
+	m_RefreshCount = 0;
 	Msg("GameDepot_System()\n");
 }
 
@@ -90,9 +95,48 @@ void GameDepot::System::MountAsFallback(Information* param_1) {
 	Msg("GameDepot::System::MountAsFallback()\n");
 }
 
+#define GAMEDEPOTSYSTEM "gamedepotsystem"
+
 void GameDepot::System::Load() {
-	Msg("GameDepot::System::Load()\n");
+	KeyValues* kv = new KeyValues(GAMEDEPOTSYSTEM); RunCodeAtScopeExit(kv->deleteThis(););
+
+	for (auto& v : m_MountedGames) {
+		v.owned = get->SteamApps()->BIsSubscribedApp(v.appid);
+		v.installed = get->SteamApps()->BIsAppInstalled(v.appid);
+	}
+
+	if (!g_pFullFileSystem->FileExists("cfg/mountdepots.txt", "DEFAULT_WRITE_PATH")) {
+		Save(); 
+		return;
+	}
+
+	kv->LoadFromFile(g_pFullFileSystem, "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH");
+
+	for (auto& v : m_MountedGames)
+		v.mounted = false;                                        
+
+	for (KeyValues* pKv = kv->GetFirstSubKey(); pKv; pKv = pKv->GetNextKey()) {
+		for (auto& v : m_MountedGames) {
+			if (!strcmp(v.folder.c_str(), pKv->GetName())) {
+				if (pKv->GetInt())                      
+					v.mounted = true;                             
+			}
+		}
+	}
 }
+
+void GameDepot::System::Save() {
+	KeyValues* kv = new KeyValues(GAMEDEPOTSYSTEM); RunCodeAtScopeExit(kv->deleteThis(););
+
+	for (auto& v : m_MountedGames) {
+		if (v.mounted)                                           
+			kv->SetInt(v.folder.c_str(), 1);                     
+	}
+
+	kv->SaveToFile(g_pFullFileSystem, "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH");
+}
+
+#undef GAMEDEPOTSYSTEM
 
 void GameDepot::System::Setup() {
 	Msg("GameDepot::System::Setup()\n");
