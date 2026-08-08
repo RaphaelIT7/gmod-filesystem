@@ -159,6 +159,10 @@ void Gamemode::System::AddGamemode( std::string strGamemode )
 	if ( !kv->LoadFromFile( g_pFullFileSystem, strPath.c_str(), "GAME" ) )
 		return;
 
+	// RaphaelIT7: We need to have m_ConVarIdentifier set at this point as else convar registration will be screwed
+	if ( m_ConVarIdentifier == -1 )
+		m_ConVarIdentifier = g_pCVar->AllocateDLLIdentifier();
+
 	IGamemodeSystem::Information information;
 	KeyValues* settings = kv->FindKey("settings");
 	if (settings)

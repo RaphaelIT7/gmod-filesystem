@@ -32,7 +32,7 @@ private:
 	// We do better- we allocate them using the m_ConVarArena and
 	// on refresh we unregister using m_ConVarIdentifier and then we clear out the m_ConVarArena
 	std::pmr::monotonic_buffer_resource m_ConVarArena;
-	CVarDLLIdentifier_t m_ConVarIdentifier;
+	CVarDLLIdentifier_t m_ConVarIdentifier = -1;
 
 	const char* AllocString( const char* pszString )
 	{
