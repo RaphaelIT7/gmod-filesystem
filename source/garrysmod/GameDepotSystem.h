@@ -4,6 +4,10 @@
 
 namespace GameDepot
 {
+	extern bool bInitialized;
+#ifndef DEDICATED
+	std::string GetAppInstallDir_FixedCase( int nAppID );
+#endif
 
 class System : public IGameDepotSystem
 {

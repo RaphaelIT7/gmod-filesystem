@@ -5559,21 +5559,25 @@ IAddonSystem *CBaseFileSystem::Addons()
 
 IGamemodeSystem *CBaseFileSystem::Gamemodes()
 {
+	Msg( "CBaseFileSystem::Gamemodes\n" );
 	return &m_GamemodeSystem;
 }
 
 IGameDepotSystem *CBaseFileSystem::Games()
 {
+	Msg( "CBaseFileSystem::Games\n" );
 	return &m_GameDepotSystem;
 }
 
 ILegacyAddons *CBaseFileSystem::LegacyAddons()
 {
+	Msg( "CBaseFileSystem::LegacyAddons\n" );
 	return &m_LegacyAddonSystem;
 }
 
 IGModLanguage *CBaseFileSystem::Language()
 {
+	Msg( "CBaseFileSystem::Language\n" );
 	return &m_Language;
 }
 

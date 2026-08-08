@@ -1,4 +1,3 @@
-#include "public/IGameDepotSystem.h"
 #include "GameDepotSystem.h"
 #include <stdlib.h>
 #include <basetypes.h>
@@ -7,7 +6,7 @@
 #include "filesystem.h"
 #include <sdk_backports.h>
 #include "public/IGet.h"
-#include "steam_api.h"
+#include "steam/isteamapps.h"
 
 static const std::vector<IGameDepotSystem::Information>& MountableGames()
 {
@@ -65,8 +64,11 @@ void GameDepot::System::Refresh()
 
 void GameDepot::System::Clear()
 {
-	Load(); // Yeah?
 	Msg( "GameDepot::System::Clear()\n" );
+	Setup();
+
+	g_pFullFileSystem->RemoveSearchPathsByGroup( PRIORITY_GROUP_HEAD( GN_CURRENTGAME ) );
+	g_pFullFileSystem->RemoveSearchPathsByGroup( PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) );
 }
 
 void GameDepot::System::SetMount( uint32_t nAppID, bool bMounted )
@@ -106,16 +108,10 @@ int GameDepot::System::GetRefreshCount()
 	return m_RefreshCount;
 }
 
-GameDepot::System::System() : m_MountedGames()
+GameDepot::System::System()
 {
 	m_RefreshCount = 0;
 	Msg( "GameDepot_System()\n" );
-
-	m_MountedGames.clear();
-	// Copy mountableGames -> m_MountedGames
-	const std::vector<Information> &mountableGames = MountableGames();
-	for ( size_t i = 0; i < mountableGames.size(); ++i ) 
-		m_MountedGames.push_back( mountableGames[i] );
 }
 
 void GameDepot::System::FindGame( std::string* param_1 )
@@ -128,6 +124,7 @@ bool GameDepot::System::MountAsSteampipe( Information* param_1, bool param_2 )
 	Msg( "GameDepot::System::MountAsSteampipe()\n" );
 	return true; // TODO
 	// ^^ I think this is the process of mounting VPK's
+	// RaphaelIT7: On Linux DS this does nothing but you can find the code in filesystem_stdio.dylib (macos build)
 }
 
 void GameDepot::System::Mount( Information *mountGameInfo, bool mount )
@@ -179,12 +176,6 @@ void GameDepot::System::Load()
 	KeyValues* kv = new KeyValues( GAMEDEPOTSYSTEM );
 	RunCodeAtScopeExit( kv->deleteThis(); );
 
-	for ( auto &v : m_MountedGames )
-	{
-		v.owned = get->SteamApps()->BIsSubscribedApp( v.appid );
-		v.installed = get->SteamApps()->BIsAppInstalled( v.appid );
-	}
-
 	if ( !g_pFullFileSystem->FileExists( "cfg/mountdepots.txt", "DEFAULT_WRITE_PATH" ) )
 	{
 		Save();
@@ -225,12 +216,61 @@ void GameDepot::System::Save()
 
 #undef GAMEDEPOTSYSTEM
 
+static void FillDepotList( std::list<IGameDepotSystem::Information> &MountedGames )
+{
+	MountedGames.clear();
+	const std::vector<IGameDepotSystem::Information> &mountableGames = MountableGames();
+	MountedGames.resize( mountableGames.size() );
+
+	for ( size_t i = 0; i < mountableGames.size(); ++i ) 
+		MountedGames.push_back( mountableGames[i] );
+}
+
+bool GameDepot::bInitialized = false;
 void GameDepot::System::Setup()
 {
+	if ( GameDepot::bInitialized )
+		return;
+
+	GameDepot::bInitialized = true;
+	FillDepotList( m_MountedGames );
+
+#ifdef DEDICATED
+	for ( auto& game : m_MountedGames )
+	{
+		game.owned = true;
+		game.installed = true;
+	}
+#else
+	for ( auto& game : m_MountedGames )
+	{
+		game.owned = SteamApps()->BIsSubscribedApp( game.appid );
+		game.installed = SteamApps()->BIsAppInstalled( game.appid );
+		if ( game.owned && game.installed )
+		{
+			// RaphaelIT7: GetAppInstallDir_FixedCase differs in some way- idk what it is yet.
+			std::string strGamePath = GetAppInstallDir_FixedCase( game.appid );
+			if ( strGamePath.empty() )
+				continue;
+
+			game.folder = strGamePath;
+		}
+	}
+#endif
+
 	Load();
-	// ??????????????????????
-	// I really think this is incorrect.. those don't even fit in the enum.
-	// // I'm not sure what else it would call. I would think it would remove all GAMECONTENT and FALLBACK search paths?
-	// g_pFullFileSystem->RemoveSearchPathsByGroup(14);
-	// g_pFullFileSystem->RemoveSearchPathsByGroup(20);
 }
+
+#ifndef DEDICATED
+std::string GameDepot::GetAppInstallDir_FixedCase( int nAppID )
+{
+	static std::string empty = ""; // Just in case to avoid issues.
+
+	char szPath[260];
+	uint32_t len = SteamApps()->GetAppInstallDir( nAppID, szPath, sizeof( szPath ) );
+	if ( !len )
+		return empty;
+
+	return szPath;
+}
+#endif

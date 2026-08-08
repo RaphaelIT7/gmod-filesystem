@@ -2,6 +2,7 @@
 #include "garrysmod/public/IAddonDownloadNotify.h"
 #include "garrysmod/public/IGet.h"
 #include "tier1/keyvalues.h"
+#include "sdk_backports.h"
 #include "filesystem.h"
 #include <charconv>
 
@@ -57,7 +58,10 @@ void Addon::FileSystem::SetShouldMount( uint64_t wsid, bool bShouldMount )
 
 void Addon::FileSystem::Save()
 {
+	Msg( "CAddonFileSystem::Save\n" );
 	KeyValues* kv = new KeyValues( "addonnomount" );
+	RunCodeAtScopeExit( kv->deleteThis(); );
+
 	KeyValues* list = kv->CreateNewKey();
 
 	int i = 0;
@@ -76,9 +80,6 @@ void Addon::FileSystem::Save()
 	}
 
 	kv->SaveToFile( g_pFullFileSystem, "cfg/addonnomount.txt", "DEFAULT_WRITE_PATH" );
-	kv->deleteThis();
-
-	Msg( "CAddonFileSystem::Save\n" );
 }
 
 const std::list<IAddonSystem::Information>& Addon::FileSystem::GetList( ) const
@@ -177,6 +178,7 @@ void Addon::FileSystem::IsAddonValidPreInstall( SteamUGCDetails_t details )
 
 bool Addon::FileSystem::AllJobsFinished()
 {
+	Msg( "Addon::FileSystem::AllJobsFinished\n" );
 	// RaphaelIT7:
 	// The GMod loading screen waits for this to return true
 	// Else you will wait forever.
@@ -195,6 +197,7 @@ void Addon::FileSystem::AddJob( Addon::Job::Base* base )
 
 const std::list<SteamUGCDetails_t>& Addon::FileSystem::GetSubList() const
 {
+	Msg( "Addon::FileSystem::GetSubList\n" );
 	return m_Subscriptions;
 }
 
