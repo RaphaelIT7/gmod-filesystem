@@ -53,6 +53,9 @@ private:
 
 	std::list<IGamemodeSystem::Information> m_Gamemodes;
 	std::string m_strActive;
+
+	// March: might be done differently, review
+	IGamemodeSystem::Information m_NotFound;
 };
 
 }

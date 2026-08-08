@@ -70,17 +70,17 @@ const IGamemodeSystem::Information& Gamemode::System::Active()
 
 const IGamemodeSystem::Information &Gamemode::System::FindByName( const std::string& strGamemode )
 {
-	for ( IGamemodeSystem::Information info : m_Gamemodes )
+	for ( const IGamemodeSystem::Information& info : m_Gamemodes )
 	{
 		if ( info.name == strGamemode )
 			return info;
 	}
 
-	IGamemodeSystem::Information info;
-	info.exists = false;
-	info.name = strGamemode;
+	m_NotFound = IGamemodeSystem::Information();
+	m_NotFound.exists = false;
+	m_NotFound.name = strGamemode;
 
-	return info;
+	return m_NotFound;
 }
 
 void Gamemode::System::SetActive( const std::string& strGamemode )
