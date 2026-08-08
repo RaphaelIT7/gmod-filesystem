@@ -3,7 +3,7 @@
 #include "garrysmod/public/IGModLanguage.h"
 #include "unordered_stuff.h"
 
-class CLanguage : public ILanguage
+class CLanguage : public IGModLanguage
 {
 public: // ILanguage
 	void ChangeLanguage( const char *pszLangCode, bool bForceReload = false ) override;

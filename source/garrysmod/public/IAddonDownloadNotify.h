@@ -1,7 +1,9 @@
 #pragma once
 
+#include "tier0/basetypes.h"
+
 // NOTE: The Comment behind each function show which Lua hook it calls in the menu realm.
-class AddonDownloadNotifications
+class IAddonDownloadNotification
 {
 public:
 	virtual void Start( ) = 0; // Calls GM:WorkshopStart
@@ -15,9 +17,4 @@ public:
 	virtual void SendMessage( char* message ) = 0; // Calls GM:WorkshopSubscriptionsMessage
 	virtual void NotifySubscriptionChanges( ) = 0; // Calls GM:WorkshopSubscriptionsChanged
 	virtual void NotifyAddonConflict( uint64_t wsid1, uint64_t wsid2, const char* filename ) = 0; // Calls GM:OnNotifyAddonConflict
-};
-
-class IAddonDownloadNotification : public AddonDownloadNotifications
-{
-
 };

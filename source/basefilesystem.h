@@ -67,6 +67,7 @@
 // GMOD
 #include "garrysmod/AddonFileHandle.h"
 #include "garrysmod/GModLanguage.h"
+#include "garrysmod/LegacyAddonSystem.h"
 #include <string>
 
 #include "tier0/memdbgon.h"
@@ -77,52 +78,6 @@
 // #elif defined(POSIX)
 // #define PATHSEPARATOR(c) ((c) == '/')
 // #endif	//_WIN32
-
-// GMod - RaphaelIT7:
-// We can mostly guess the IDs from https://github.com/RaphaelIT7/gmod-build-checker-results/blob/dev/searchpaths.json
-// ::NewSearchPath only accepts bits 1-7 BUT inside CSearchPath it's stored as an int. Fun!
-// Credits: This definition originally is from: https://github.com/danielga/sourcesdk-minimal/blob/master/public/filesystem_base.h#L50-L66
-enum CPathPriorityGroup_t
-{
-	// RaphaelIT7:
-	// This one means it's an SearchPath created by the engine that was given no specific CPathPriorityGroup_t
-	// The engine will change the group to then be GN_ENGINECORE (which is the default)
-	// So GN_UNSET is simply a placeholder that actually never ends up stored in CSearchPath::m_PriorityGroupID
-	GN_UNSET = 0, // Named GN_DEFAULT in the sourcesdk-minimal yet it really isn't a default.
-	GN_ENGINECORE,
-	// Lua folders (mounted to lsv & lsc & LuaMenu)
-	GN_LUA,
-	// Map content (mounted to only GAME)
-	// This is only the current maps/somemap.bsp
-	GN_MAP,
-	// Legacy addons (mounted to GAME & thirdparty)
-	GN_ADDONCONTENT,
-	// Gamemode content (mounted to GAME & thirdparty)
-	GN_GMCONTENT,
-	// GMod Content
-	// -> workshop/ is a imaginary folder for the addonsystem (mounted to GAME, workshop & thirdparty)
-	// -> garrysmod.vpk (mounted to MOD, GAME, garrysmod)
-	// -> garrysmod/ (mounted to MOD, MOD_WRITE, DEFAULT_WRITE_PATH, GAME, GAME_WRITE, garrysmod)
-	// -> data/ (mounted to only DATA)
-	GN_GMODCORE,
-	GN_CURRENTGAME,
-	// sourceengine/ vpks that aren't content_ (mounted to only GAME)
-	GN_SOURCESDK,
-	GN_BADDONCONTENT,
-	//content_[NAME].vpk like hl2 & cstrike (mounted to GAME & also [GameName/hl2/cstrike]
-	GN_GAMECONTENT,
-	GN_MOUNTCFG,
-	// download/ folder (mounted to GAME & DOWNLOAD)
-	GN_DOWNLOADS,
-	// Fallback vpks (garrysmod/fallbacks.vpk) (mounted to GAME & MOD)
-	GN_FALLBACKS
-};
-
-// RaphaelIT7: We must shift it to the left by one to respect how GMod does it
-#define PRIORITY_GROUP_HEAD(group) ((int)group<<1)
-#define PRIORITY_GROUP_TAIL(group) (PATH_ADD_TO_TAIL | ((int)group<<1))
-#define PATH_ADD_MASK 0x1
-#define PATH_PRIORITY_MASK 0xFFFFFEFF
 
 #define MAX_FILEPATH 512 
 
@@ -940,11 +895,11 @@ public: // GMOD
 
 	virtual void RemoveSearchPathsByGroup( int iPriorityGroup );
 	virtual void SetGet( IGet* pGet );
-	virtual Addon::FileSystem *Addons();
-	virtual Gamemode::System *Gamemodes();
-	virtual GameDepot::System *Games();
-	virtual LegacyAddons::System *LegacyAddons();
-	virtual CLanguage *Language();
+	virtual IAddonSystem *Addons();
+	virtual IGamemodeSystem *Gamemodes();
+	virtual IGameDepotSystem *Games();
+	virtual ILegacyAddons *LegacyAddons();
+	virtual IGModLanguage *Language();
 	virtual void DoFilesystemRefresh();
 	virtual int LastFilesystemRefresh();
 	virtual void AddVPKFileFromPath( const char* pPath, const char* pPathID, SearchPathAdd_t addType );
@@ -953,6 +908,7 @@ public: // GMOD
 
 private: // GMOD
 	CLanguage m_Language;
+	CLegacyAddonSystem m_LegacyAddonSystem;
 
 	int m_iRefreshCounter = 0;
 	std::string m_strGamePath = "";

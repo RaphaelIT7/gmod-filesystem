@@ -5513,27 +5513,27 @@ void CBaseFileSystem::SetGet( IGet* pGet )
 	get = pGet;
 }
 
-Addon::FileSystem *CBaseFileSystem::Addons()
+IAddonSystem *CBaseFileSystem::Addons()
 {
 	return nullptr;
 }
 
-Gamemode::System *CBaseFileSystem::Gamemodes()
+IGamemodeSystem *CBaseFileSystem::Gamemodes()
 {
 	return nullptr;
 }
 
-GameDepot::System *CBaseFileSystem::Games()
+IGameDepotSystem *CBaseFileSystem::Games()
 {
 	return nullptr;
 }
 
-LegacyAddons::System *CBaseFileSystem::LegacyAddons()
+ILegacyAddons *CBaseFileSystem::LegacyAddons()
 {
-	return nullptr;
+	return &m_LegacyAddonSystem;
 }
 
-CLanguage *CBaseFileSystem::Language()
+IGModLanguage *CBaseFileSystem::Language()
 {
 	return &m_Language;
 }

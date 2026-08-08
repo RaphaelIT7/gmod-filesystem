@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-class ILanguage
+class IGModLanguage
 {
 public:
 	// If bForceReload = true then it won't tell Lua about it
