@@ -4699,9 +4699,10 @@ CSysModule *CBaseFileSystem::LoadModule( const char *pFileName, const char *pPat
 	}
 
 	// couldn't load it from any of the search paths, let LoadLibrary try
-	// dimhotepus: Prevent loading something placed into current directory!
-	// return Sys_LoadModule( pFileName );
-	return nullptr;
+	// RaphaelIT7:
+	// In Obsoletium they return a nullptr BUT GMod depends on the behavior of Sys_LoadModule being attempted!
+	// This is due to GMod failing to properly add GAMEBIN for the bin/ folder as it only adds GAMEBIN for garrysmod/bin/
+	return Sys_LoadModule( pFileName );
 }
 
 //-----------------------------------------------------------------------------
