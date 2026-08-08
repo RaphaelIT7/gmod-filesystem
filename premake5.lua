@@ -84,6 +84,7 @@ CreateWorkspace({name = "filesystem_stdio", abi_compatible = true})
 		end
 
 		files({
+			gmcommon .. [[/sourcesdk-minimal/public/tier0/memoverride.cpp]],
 			gmcommon .. [[/sourcesdk-minimal/public/zip_utils.cpp]],
 			gmcommon .. [[/sourcesdk-minimal/public/kevvaluescompiler.cpp]],
 			rootDir .. "README.md",
