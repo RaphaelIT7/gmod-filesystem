@@ -51,7 +51,7 @@ void GameDepot_System::Save() {
 	Msg("GameDepot_System::Save()\n");
 }
 
-void GameDepot_System::SetMount(uint param_1, bool param_2) {
+void GameDepot_System::SetMount(uint32_t param_1, bool param_2) {
 	Msg("GameDepot_System::SetMount()\n");
 }
 
@@ -59,16 +59,18 @@ void GameDepot_System::MarkGameAsMounted(const std::string param_1) {
 	Msg("GameDepot_System::MarkGameAsMounted()\n");
 }
 
-const std::list<IGameDepotSystem::Information>& GameDepot_System::GetList()  {
+const std::list<IGameDepotSystem::Information>& GameDepot_System::GetList() const {
 	Msg("GameDepot_System::GetList()\n");
+	static const std::list<IGameDepotSystem::Information> empty;
+	return empty;
 }
 
 void GameDepot_System::MountAsMapFix(uint32_t param_1) {
-
+	Msg("GameDepot_System::MountAsMapFix()\n");
 }
 
 void GameDepot_System::MountCurrentGame(const std::string& param_1) {
-
+	Msg("GameDepot_System::MountCurrentGame()\n");
 }
 
 GameDepot_System::GameDepot_System() {
