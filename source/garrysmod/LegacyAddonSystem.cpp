@@ -1,7 +1,7 @@
 #include "LegacyAddonSystem.h"
 #include "filesystem.h"
 
-void CLegacyAddonSystem::Refresh()
+void LegacyAddons::System::Refresh()
 {
 	m_pAddons.clear();
 	g_pFullFileSystem->RemoveSearchPathsByGroup( PRIORITY_GROUP_HEAD( GN_ADDONCONTENT ) );
@@ -34,7 +34,7 @@ void CLegacyAddonSystem::Refresh()
 	}
 }
 
-const std::list<ILegacyAddons::Information>& CLegacyAddonSystem::GetList() const
+const std::list<ILegacyAddons::Information>& LegacyAddons::System::GetList() const
 {
 	return m_pAddons;
 }

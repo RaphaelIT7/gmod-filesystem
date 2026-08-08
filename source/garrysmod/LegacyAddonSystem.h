@@ -2,7 +2,10 @@
 
 #include "garrysmod/public/ILegacyAddons.h"
 
-class CLegacyAddonSystem : public ILegacyAddons
+namespace LegacyAddons
+{
+
+class System : public ILegacyAddons
 {
 public:
 	virtual void Refresh( );
@@ -10,3 +13,5 @@ public:
 private:
 	std::list<ILegacyAddons::Information> m_pAddons;
 };
+
+}

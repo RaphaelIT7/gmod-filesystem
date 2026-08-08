@@ -69,6 +69,7 @@
 #include "garrysmod/GModLanguage.h"
 #include "garrysmod/GameDepotSystem.h"
 #include "garrysmod/LegacyAddonSystem.h"
+#include "garrysmod/GamemodeSystem.h"
 #include <string>
 
 #include "tier0/memdbgon.h"
@@ -909,8 +910,9 @@ public: // GMOD
 
 private: // GMOD
 	CLanguage m_Language;
-	GameDepot_System m_GameDepotSystem;
-	CLegacyAddonSystem m_LegacyAddonSystem;
+	GameDepot::System m_GameDepotSystem;
+	LegacyAddons::System m_LegacyAddonSystem;
+	Gamemode::System m_GamemodeSystem;
 
 	int m_iRefreshCounter = 0;
 	std::string m_strGamePath = "";

@@ -5521,7 +5521,7 @@ IAddonSystem *CBaseFileSystem::Addons()
 
 IGamemodeSystem *CBaseFileSystem::Gamemodes()
 {
-	return nullptr;
+	return &m_GamemodeSystem;
 }
 
 IGameDepotSystem *CBaseFileSystem::Games()
