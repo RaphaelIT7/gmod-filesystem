@@ -49,6 +49,7 @@ static const std::vector<IGameDepotSystem::Information>& MountableGames()
 
 void GameDepot::System::Refresh()
 {
+	Msg( "GameDepot::System::Refresh()\n" );
 	m_RefreshCount++;
 	Clear();
 	Load();
@@ -73,6 +74,7 @@ void GameDepot::System::Clear()
 
 void GameDepot::System::SetMount( uint32_t nAppID, bool bMounted )
 {
+	Msg( "GameDepot::System::SetMount()\n" );
 	for ( auto &v : m_MountedGames )
 	{
 		if (v.appid != nAppID)
@@ -88,6 +90,7 @@ void GameDepot::System::SetMount( uint32_t nAppID, bool bMounted )
 
 void GameDepot::System::MarkGameAsMounted( const std::string strGameFolder )
 {
+	Msg( "GameDepot::System::MarkGameAsMounted()\n" );
 	for ( auto& v : m_MountedGames )
 	{
 		if ( v.folder == strGameFolder )
@@ -100,18 +103,20 @@ void GameDepot::System::MarkGameAsMounted( const std::string strGameFolder )
 
 const std::list<IGameDepotSystem::Information> &GameDepot::System::GetList()
 {
+	Msg( "GameDepot::System::GetList()\n" );
 	return m_MountedGames;
 }
 
 int GameDepot::System::GetRefreshCount()
 {
+	Msg( "GameDepot::System::GetRefreshCount()\n" );
 	return m_RefreshCount;
 }
 
 GameDepot::System::System()
 {
 	m_RefreshCount = 0;
-	Msg( "GameDepot_System()\n" );
+	Msg( "GameDepot::System::System()\n" );
 }
 
 void GameDepot::System::FindGame( std::string* param_1 )
@@ -202,6 +207,7 @@ void GameDepot::System::Load()
 
 void GameDepot::System::Save()
 {
+	Msg( "GameDepot::System::Save()\n" );
 	KeyValues* kv = new KeyValues( GAMEDEPOTSYSTEM );
 	RunCodeAtScopeExit( kv->deleteThis(); );
 
@@ -220,8 +226,6 @@ static void FillDepotList( std::list<IGameDepotSystem::Information> &MountedGame
 {
 	MountedGames.clear();
 	const std::vector<IGameDepotSystem::Information> &mountableGames = MountableGames();
-	MountedGames.resize( mountableGames.size() );
-
 	for ( size_t i = 0; i < mountableGames.size(); ++i ) 
 		MountedGames.push_back( mountableGames[i] );
 }
