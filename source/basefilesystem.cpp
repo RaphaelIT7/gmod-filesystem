@@ -42,6 +42,7 @@ IGet* get = nullptr;
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+#include <garrysmod/public/IGameDepotSystem.h>
 
 
 ConVar fs_report_sync_opens( "fs_report_sync_opens", "0", 0, "0:Off, 1:Blocking only, 2:All" );
@@ -5525,7 +5526,7 @@ IGamemodeSystem *CBaseFileSystem::Gamemodes()
 
 IGameDepotSystem *CBaseFileSystem::Games()
 {
-	return nullptr;
+	return &m_GameDepotSystem;
 }
 
 ILegacyAddons *CBaseFileSystem::LegacyAddons()

@@ -67,6 +67,7 @@
 // GMOD
 #include "garrysmod/AddonFileHandle.h"
 #include "garrysmod/GModLanguage.h"
+#include "garrysmod/GameDepotSystem.h"
 #include "garrysmod/LegacyAddonSystem.h"
 #include <string>
 
@@ -908,6 +909,7 @@ public: // GMOD
 
 private: // GMOD
 	CLanguage m_Language;
+	GameDepot_System m_GameDepotSystem;
 	CLegacyAddonSystem m_LegacyAddonSystem;
 
 	int m_iRefreshCounter = 0;
