@@ -39,64 +39,64 @@ IGameDepotSystem::Information mountableGames[] = {
 	{ 362890,  0, "Black Mesa",                        "bms",               false, false, false, false, true,  false },
 };
 
-void GameDepot_System::Refresh() {
-	Msg("GameDepot_System::Refresh()\n");
+void GameDepot::System::Refresh() {
+	Msg("GameDepot::System::Refresh()\n");
 }
 
-void GameDepot_System::Clear() {
-	Msg("GameDepot_System::Clear()\n");
+void GameDepot::System::Clear() {
+	Msg("GameDepot::System::Clear()\n");
 }
 
-void GameDepot_System::Save() {
-	Msg("GameDepot_System::Save()\n");
+void GameDepot::System::Save() {
+	Msg("GameDepot::System::Save()\n");
 }
 
-void GameDepot_System::SetMount(uint32_t param_1, bool param_2) {
-	Msg("GameDepot_System::SetMount()\n");
+void GameDepot::System::SetMount(uint32_t param_1, bool param_2) {
+	Msg("GameDepot::System::SetMount()\n");
 }
 
-void GameDepot_System::MarkGameAsMounted(const std::string param_1) {
-	Msg("GameDepot_System::MarkGameAsMounted()\n");
+void GameDepot::System::MarkGameAsMounted(const std::string param_1) {
+	Msg("GameDepot::System::MarkGameAsMounted()\n");
 }
 
-const std::list<IGameDepotSystem::Information>& GameDepot_System::GetList() const {
-	Msg("GameDepot_System::GetList()\n");
+const std::list<IGameDepotSystem::Information>& GameDepot::System::GetList() const {
+	Msg("GameDepot::System::GetList()\n");
 	static const std::list<IGameDepotSystem::Information> empty;
 	return empty;
 }
 
-void GameDepot_System::MountAsMapFix(uint32_t param_1) {
-	Msg("GameDepot_System::MountAsMapFix()\n");
+void GameDepot::System::MountAsMapFix(uint32_t param_1) {
+	Msg("GameDepot::System::MountAsMapFix()\n");
 }
 
-void GameDepot_System::MountCurrentGame(const std::string& param_1) {
-	Msg("GameDepot_System::MountCurrentGame()\n");
+void GameDepot::System::MountCurrentGame(const std::string& param_1) {
+	Msg("GameDepot::System::MountCurrentGame()\n");
 }
 
-GameDepot_System::GameDepot_System() {
+GameDepot::System::System() {
 	Msg("GameDepot_System()\n");
 }
 
-void GameDepot_System::FindGame(std::string* param_1) {
-	Msg("GameDepot_System::FindGame()\n");
+void GameDepot::System::FindGame(std::string* param_1) {
+	Msg("GameDepot::System::FindGame()\n");
 }
 
-void GameDepot_System::MountAsSteampipe(Information* param_1, bool param_2) {
-	Msg("GameDepot_System::MountAsSteampipe()\n");
+void GameDepot::System::MountAsSteampipe(Information* param_1, bool param_2) {
+	Msg("GameDepot::System::MountAsSteampipe()\n");
 }
 
-void GameDepot_System::Mount(Information* param_1, bool param_2) {
-	Msg("GameDepot_System::Mount()\n");
+void GameDepot::System::Mount(Information* param_1, bool param_2) {
+	Msg("GameDepot::System::Mount()\n");
 }
 
-void GameDepot_System::MountAsFallback(Information* param_1) {
-	Msg("GameDepot_System::MountAsFallback()\n");
+void GameDepot::System::MountAsFallback(Information* param_1) {
+	Msg("GameDepot::System::MountAsFallback()\n");
 }
 
-void GameDepot_System::Load() {
-	Msg("GameDepot_System::Load()\n");
+void GameDepot::System::Load() {
+	Msg("GameDepot::System::Load()\n");
 }
 
-void GameDepot_System::Setup() {
-	Msg("GameDepot_System::Setup()\n");
+void GameDepot::System::Setup() {
+	Msg("GameDepot::System::Setup()\n");
 }
