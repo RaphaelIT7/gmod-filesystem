@@ -70,6 +70,7 @@
 #include "garrysmod/GameDepotSystem.h"
 #include "garrysmod/LegacyAddonSystem.h"
 #include "garrysmod/GamemodeSystem.h"
+#include "garrysmod/AddonFileSystem.h"
 #include <string>
 
 #include "tier0/memdbgon.h"
@@ -913,6 +914,7 @@ private: // GMOD
 	GameDepot::System m_GameDepotSystem;
 	LegacyAddons::System m_LegacyAddonSystem;
 	Gamemode::System m_GamemodeSystem;
+	Addon::FileSystem m_AddonFileSystem;
 
 	int m_iRefreshCounter = 0;
 	std::string m_strGamePath = "";

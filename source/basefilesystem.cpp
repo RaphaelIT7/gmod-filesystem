@@ -1223,34 +1223,72 @@ void CBaseFileSystem::EndMapAccess()
 	}
 }
 
+static inline const char *GMOD_GetSearchPathGroupName( int iPriorityGroup )
+{
+	static const char *names[] =
+	{
+		"DEFAULT",
+		"ENGINECORE",
+		"LUA",
+		"MAP",
+		"ADDONCONTENT",
+		"GMCONTENT",
+		"GMODCORE",
+		"CURRENTGAME",
+		"SOURCESDK",
+		"BADDONCONTENT",
+		"GAMECONTENT",
+		"MOUNTCFG",
+		"DOWNLOADS",
+		"FALLBACKS",
+		"WORKSHOP",
+	};
+
+	if ( iPriorityGroup < 0 || iPriorityGroup >= ARRAYSIZE( names ) )
+		return nullptr;
+
+	return names[iPriorityGroup];
+}
 
 void CBaseFileSystem::PrintSearchPaths( void )
 {
 	Msg( "---------------\n" );
 	Msg( "Paths:\n" );
 
-	for( auto &sp : m_SearchPaths )
+	int previousPriorityGroup = -1;
+	for ( auto &sp : m_SearchPaths )
 	{
-		const char *pszPack = "";
-		const char *pszType = "";
-		if ( sp.GetPackFile() && sp.GetPackFile()->m_bIsMapPath )
+		const int priorityGroup = sp.m_PriorityGroupID;
+		if ( priorityGroup != previousPriorityGroup )
 		{
-			pszType = "(map)";
+			Msg( "--- %s ---\n", GMOD_GetSearchPathGroupName( priorityGroup ) );
+			previousPriorityGroup = priorityGroup;
 		}
-		else if ( sp.GetPackFile()  )
-		{
-			pszType = "(pack) ";
-			pszPack = sp.GetPackFile()->m_ZipName;
-		}
-		#ifdef SUPPORT_PACKED_STORE
-			else if ( sp.GetPackedStore()  )
-			{
-				pszType = "(VPK)";
-				pszPack = sp.GetPackedStore()->FullPathName();
-			}
-		#endif
 
-		Msg( "\"%s\" \"%s\" %s%s\n", sp.GetPathString(), sp.GetPathIDString(), pszType, pszPack );
+		const char *pszName = "";
+		const char *pszType = "";
+		if ( sp.GetPackFile() )
+		{
+			if ( sp.GetPackFile()->m_bIsMapPath )
+			{
+				pszType = "(map)";
+				pszName = "";
+			}
+			else
+			{
+				pszType = "(pack) ";
+				pszName = sp.GetPackFile()->m_ZipName;
+			}
+		}
+#ifdef SUPPORT_PACKED_STORE
+		else if ( sp.GetPackedStore() )
+		{
+			pszType = "(VPK)";
+			pszName = sp.GetPackedStore()->FullPathName();
+		}
+#endif
+
+		Msg( "\"%s\" \"%s\" %s\n", *pszName ? pszName : sp.GetPathString(), sp.GetPathIDString(), pszType );
 	}
 }
 
@@ -5516,7 +5554,7 @@ void CBaseFileSystem::SetGet( IGet* pGet )
 
 IAddonSystem *CBaseFileSystem::Addons()
 {
-	return nullptr;
+	return &m_AddonFileSystem;
 }
 
 IGamemodeSystem *CBaseFileSystem::Gamemodes()
@@ -5691,39 +5729,40 @@ void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const cha
 	//
 	// Engine
 	//
-	AddSearchPath( ( m_strGamePath + "/garrysmod/bin" ).c_str(), "GAMEBIN", PRIORITY_GROUP_TAIL( GN_ENGINECORE ) );
-	AddSearchPath( ( m_strGamePath + "/bin" ).c_str(), "EXECUTABLE_PATH", PRIORITY_GROUP_TAIL( GN_ENGINECORE ) );
+	AddSearchPath( ( m_strModPath + "/bin" ).c_str(), "GAMEBIN", PRIORITY_GROUP_TAIL( GN_ENGINECORE ) );
+	AddSearchPath( ( m_strGamePath ).c_str(), "EXECUTABLE_PATH", PRIORITY_GROUP_TAIL( GN_ENGINECORE ) );
 
 	//
 	// Workshop
 	//
-	AddSearchPath( ( m_strGamePath + "/workshop" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( ( m_strGamePath + "/workshop" ).c_str(), "workshop", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( ( m_strGamePath + "/workshop" ).c_str(), "thirdparty", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "workshop", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "thirdparty", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
 
 	//
 	// GMod content
 	//
-	AddVPKFile( ( m_strGamePath + "/workshop/garrysmod.vpk" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddVPKFile( ( m_strGamePath + "/garrysmod.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddVPKFile( ( m_strGamePath + "/garrysmod.vpk" ).c_str(), "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddVPKFile( ( m_strModPath + "/garrysmod.vpk" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddVPKFile( ( m_strModPath + "/garrysmod.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddVPKFile( ( m_strModPath + "/garrysmod.vpk" ).c_str(), "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
 
 	if (hasVPKBuild)
 	{
-		AddSearchPath( ( m_strGamePath + "/overrides" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-		AddSearchPath( ( m_strGamePath + "/overrides" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-		AddSearchPath( ( m_strGamePath + "/overrides" ).c_str(), "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+		AddSearchPath( ( m_strModPath + "/overrides" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+		AddSearchPath( ( m_strModPath + "/overrides" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+		AddSearchPath( ( m_strModPath + "/overrides" ).c_str(), "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
 	}
 
 	//
 	// Main game folder
 	//
-	AddSearchPath( pszGamePath, "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( pszGamePath, "MOD_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( pszGamePath, "DEFAULT_WRITE_PATH", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( pszGamePath, "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( pszGamePath, "GAME_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( pszGamePath, "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszModPath, "MOD", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszModPath, "MOD_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszModPath, "DEFAULT_WRITE_PATH", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszModPath, "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszModPath, "GAME_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( pszModPath, "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strModPath + "/data" ).c_str(), "DATA", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
 
 	MarkPathIDByRequestOnly( "workshop", true );
 	MarkPathIDByRequestOnly( "thirdparty", true );
@@ -5761,11 +5800,15 @@ void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const cha
 	//
 	// Downloads
 	//
-	const std::string downloads = m_strGamePath + "/download";
+	const std::string downloads = m_strModPath + "/download";
 	AddSearchPath( downloads.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_DOWNLOADS ) );
 	AddSearchPath( downloads.c_str(), "DOWNLOAD", PRIORITY_GROUP_TAIL( GN_DOWNLOADS ) );
-	AddVPKFile( ( downloads + "/fallbacks.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
-	AddVPKFile( ( downloads + "/fallbacks.vpk" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
+
+	//
+	// Fallbacks
+	//
+	AddVPKFile( ( m_strModPath + "/fallbacks.vpk" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
+	AddVPKFile( ( m_strModPath + "/fallbacks.vpk" ).c_str(), "MOD", PRIORITY_GROUP_TAIL( GN_FALLBACKS ) );
 
 	if ( hasVPKBuild )
 	{
