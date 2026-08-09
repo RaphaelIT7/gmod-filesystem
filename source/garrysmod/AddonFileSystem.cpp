@@ -323,9 +323,11 @@ void Addon::FileSystem::Shutdown()
 	Msg( "Addon::FileSystem::Shutdown\n" );
 }
 
-void Addon::FileSystem::AddJob( Addon::Job::Base* base )
+void Addon::FileSystem::AddJob( Addon::Job::Base* job)
 {
 	Msg( "Addon::FileSystem::AddJob\n" );
+	job->Init(this);
+	m_Jobs.push_back(job);
 }
 
 const std::list<SteamUGCDetails_t>& Addon::FileSystem::GetSubList() const

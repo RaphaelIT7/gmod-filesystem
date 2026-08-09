@@ -60,6 +60,7 @@ private:
 	std::list<SteamUGCDetails_t> m_Subscriptions;
 	unordered_set<uint64_t> m_AddonNoMount;
 	IAddonDownloadNotification* m_pDownloadNotify = nullptr;
+	std::deque<Addon::Job::Base*> m_Jobs;
 	CCallback<Addon::FileSystem, RemoteStoragePublishedFileSubscribed_t> m_CallbackSubscribed;
 	CCallback<Addon::FileSystem, RemoteStoragePublishedFileUnsubscribed_t> m_CallbackUnsubscribed;
 };
