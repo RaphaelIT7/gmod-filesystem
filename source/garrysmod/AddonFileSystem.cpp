@@ -1,6 +1,7 @@
 #include "garrysmod/AddonFileSystem.h"
 #include "garrysmod/public/IAddonDownloadNotify.h"
 #include "garrysmod/public/IGet.h"
+#include "garrysmod/tasks/Tasks.h"
 #include "tier1/keyvalues.h"
 #include "sdk_backports.h"
 #include "filesystem.h"
@@ -152,6 +153,7 @@ void Addon::FileSystem::AddAddon( const IAddonSystem::Information &info )
 void Addon::FileSystem::ClearUnusedGMAs()
 {
 	Msg( "Addon::FileSystem::ClearUnusedGMAs\n" );
+	AddJob( new Addon::Task::ClearUnusedGMAs );
 }
 
 const std::string& Addon::FileSystem::GetAddonFilepath( uint64_t wsid, bool )
@@ -204,6 +206,19 @@ const std::list<SteamUGCDetails_t>& Addon::FileSystem::GetSubList() const
 void Addon::FileSystem::MountFloatingAddons()
 {
 	Msg( "Addon::FileSystem::MountFloatingAddons\n" );
+
+	FileFindHandle_t hFindHandle;
+	// RaphaelIT7:
+	// GMod checks if the gma is inside garrysmod/
+	// I dunno why they then just search in MOD...
+	const char* pszFile = g_pFullFileSystem->FindFirstEx( "*.gma", "GAME", &hFindHandle );
+	while ( pszFile )
+	{
+		// ToDo
+		pszFile = g_pFullFileSystem->FindNext( hFindHandle );
+	}
+
+	g_pFullFileSystem->FindClose( hFindHandle );
 }
 
 void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& )
@@ -240,6 +255,7 @@ void Addon::FileSystem::MarkChanged()
 void Addon::FileSystem::OnAddonDownloaded( const IAddonSystem::Information &info )
 {
 	Msg( "Addon::FileSystem::AddonDownloaded\n" );
+	MarkChanged();
 }
 
 void Addon::FileSystem::OnAddonDownloadFailed( const IAddonSystem::Information &info )

@@ -11,9 +11,21 @@ struct SteamUGCDetails_t;
 
 namespace Addon
 {
+	class FileSystem;
 	namespace Job
 	{
-		class Base;
+		class Base
+		{
+		public:
+			virtual ~Base() = default;
+			virtual void Start() = 0;
+			virtual void Cycle() = 0;
+			virtual bool Finished() = 0;
+			virtual void Init( Addon::FileSystem* pAddonSystem ) { m_pFileSystem = pAddonSystem; }
+
+		protected:
+			Addon::FileSystem* m_pFileSystem;
+		};
 	}
 }
 

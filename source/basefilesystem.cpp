@@ -1084,16 +1084,36 @@ void CBaseFileSystem::AddMapPackFile( const char *pPath, const char *pPathID, Se
 		}
 	}
 
-	// RaphaelIT7 (ToDo): GMod has the cache/map.pack code in here!
-
 	{
 		FILE *fp = Trace_FOpen( fullpath, "rb", 0, nullptr );
 		if ( !fp )
 		{
-			// Couldn't open it
-			Warning( FILESYSTEM_WARNING, "Couldn't open .bsp %s for embedded pack file check.\n", fullpath );
-			return;
+			// GMOD
+			// RaphaelIT7 (ToDo):
+			// I wonder.. this probably is a fallback for workshop mounted comments since Trace_FOpen
+			// does not contain the Addon::FileSystem checks that GMod added
+			// So this would catch that and allow it to properly handle it...
+			// Which thinking about it is actually lazy and inefficient as it now has to yet again iterate.
+			// Though of course I don't know the real background for it
+			// But if it's confirmed to just be a workaround for it- I am sure we can improve this and get rid of the write entirely
+			CUtlBuffer mapContents;
+			if ( ReadFile( fullpath, "rb", mapContents, 0, 0 ) )
+			{
+				Msg( "Extracting BSP to cache/map_pack.bsp in order to mount BSP embedded content...\n" );
+				if ( WriteFile( "cache/map_pack.bsp", "MOD_WRITE", mapContents ) )
+					AddMapPackFile( "cache/map_pack.bsp", pPathID, addType );
+				else
+					::Warning( "Couldn't write cache/map_pack.bsp to mount embedded content!\n" );
+			} else {
+				// Couldn't open it
+				Warning( FILESYSTEM_WARNING, "Couldn't open .bsp %s for embedded pack file check.\n", fullpath );
+				return;
+			}
 		}
+
+		// RaphaelIT7:
+		// GMod has code here for "Applying lump data fix for L4D2 maps...\n"
+		// Somewhere here
 	
 		// Get the .bsp file header
 		dheader_t header;
