@@ -1254,45 +1254,52 @@ static inline const char *GMOD_GetSearchPathGroupName( int iPriorityGroup )
 	return names[iPriorityGroup];
 }
 
+// GMOD! This function was modified to match GMod!
 void CBaseFileSystem::PrintSearchPaths( void )
 {
 	Msg( "---------------\n" );
 	Msg( "Paths:\n" );
 
-	int previousPriorityGroup = -1;
-	for ( auto &sp : m_SearchPaths )
+	for ( int iPriorityGroup=0; iPriorityGroup<GN_WORKSHOP; ++iPriorityGroup )
 	{
-		const int priorityGroup = sp.m_PriorityGroupID;
-		if ( priorityGroup != previousPriorityGroup )
+		bool bIsFirst = true;
+		for ( auto &sp : m_SearchPaths )
 		{
-			Msg( "--- %s ---\n", GMOD_GetSearchPathGroupName( priorityGroup ) );
-			previousPriorityGroup = priorityGroup;
-		}
+			if ( sp.m_PriorityGroupID != iPriorityGroup )
+				continue;
 
-		const char *pszName = "";
-		const char *pszType = "";
-		if ( sp.GetPackFile() )
-		{
-			if ( sp.GetPackFile()->m_bIsMapPath )
+			// RaphaelIT7: We do not print out empty groups which is why we do this.
+			if ( bIsFirst )
 			{
-				pszType = "(map)";
-				pszName = "";
+				Msg( "--- %s ---\n", GMOD_GetSearchPathGroupName( iPriorityGroup ) );
+				bIsFirst = false;
 			}
-			else
+
+			const char *pszName = "";
+			const char *pszType = "";
+			if ( sp.GetPackFile() )
 			{
-				pszType = "(pack) ";
-				pszName = sp.GetPackFile()->m_ZipName;
+				if ( sp.GetPackFile()->m_bIsMapPath )
+				{
+					pszType = "(map)";
+					pszName = "";
+				}
+				else
+				{
+					pszType = "(pack) ";
+					pszName = sp.GetPackFile()->m_ZipName;
+				}
 			}
-		}
 #ifdef SUPPORT_PACKED_STORE
-		else if ( sp.GetPackedStore() )
-		{
-			pszType = "(VPK)";
-			pszName = sp.GetPackedStore()->FullPathName();
-		}
+			else if ( sp.GetPackedStore() )
+			{
+				pszType = "(VPK)";
+				pszName = sp.GetPackedStore()->FullPathName();
+			}
 #endif
 
-		Msg( "\"%s\" \"%s\" %s\n", *pszName ? pszName : sp.GetPathString(), sp.GetPathIDString(), pszType );
+			Msg( "\"%s\" \"%s\" %s\n", *pszName ? pszName : sp.GetPathString(), sp.GetPathIDString(), pszType );
+		}
 	}
 }
 
@@ -5520,7 +5527,7 @@ CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 		}
 		else
 		{
-			if ( priorityGroup <= searchPath.m_PriorityGroupID )
+			if ( priorityGroup < searchPath.m_PriorityGroupID )
 			{
 				result = &m_SearchPaths[ m_SearchPaths.InsertBefore( i ) ];
 				break;
@@ -5841,8 +5848,8 @@ void CBaseFileSystem::GMOD_FixPathCase( char *pszPath, size_t nPathLength )
 	char szFixedPath[260];
 #ifdef POSIX
 	struct stat st;
-	if ( stat(pszPath, &st) == -1 && findFileInDirCaseInsensitive( pszPath, fixedPath, sizeof( szFixedPath ) ) )
-		V_strncpy( name, fixedPath, nPathLength );
+	if ( stat( pszPath, &st ) == -1 && findFileInDirCaseInsensitive( pszPath, szFixedPath, sizeof( szFixedPath ) ) )
+		V_strncpy( pszPath, szFixedPath, nPathLength );
 #else
 	// RaphaelIT7 (ToDo): This one must be done- though I got no idea as I can't find it in IDA
 #endif

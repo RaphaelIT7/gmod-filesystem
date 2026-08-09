@@ -10,15 +10,18 @@ void LegacyAddons::System::Refresh()
 	g_pFullFileSystem->RemoveSearchPathsByGroup( PRIORITY_GROUP_HEAD( GN_BADDONCONTENT ) );
 
 	FileFindHandle_t hFindHandle;
-	// RaphaelIT7: Yes GMod passes NULL, not "MOD"
-	const char* pszFileName = g_pFullFileSystem->FindFirstEx( "addons/*", nullptr, &hFindHandle );
+	// RaphaelIT7: Yes GMod passes NULL, not "MOD" but we give it MOD as else we include stuff we DONT want!
+	const char* pszFileName = g_pFullFileSystem->FindFirstEx( "addons/*", "MOD", &hFindHandle );
 	while ( pszFileName )
 	{
-		if( g_pFullFileSystem->FindIsDirectory( hFindHandle ) )
+		// RaphaelIT7: It should NOT start with .
+		if( g_pFullFileSystem->FindIsDirectory( hFindHandle ) && *pszFileName != '.' )
 		{
-			int priority = PRIORITY_GROUP_HEAD( GN_ADDONCONTENT );
+			int priority = PRIORITY_GROUP_TAIL( GN_ADDONCONTENT );
 			std::string strPath = "addons/";
 			strPath = strPath + pszFileName;
+
+			Msg( "Adding Filesystem Addon '%s'\n", strPath.c_str() );
 
 			char szFullPath[MAX_PATH];
 			g_pFullFileSystem->RelativePathToFullPath( strPath.c_str(), "MOD", szFullPath, sizeof(szFullPath) );
