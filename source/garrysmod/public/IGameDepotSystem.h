@@ -10,13 +10,14 @@ public:
 	struct Information
 	{
 		uint32_t appid;
-		uint32_t depot;
 		std::string title;
 		std::string folder;
 		bool mounted;
 		bool enabled;
 		bool owned;
 		bool installed;
+		// RaphaelIT7:
+		// I am unsure of these below but we leave them as the struct size fits good enouth for GMod to accept.
 		bool retail;
 		bool bundled;
 	};

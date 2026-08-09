@@ -5586,6 +5586,9 @@ void CBaseFileSystem::DoFilesystemRefresh()
 	++m_iRefreshCounter;
 }
 
+// RaphaelIT7:
+// This function is for example called by CMenuSystem::CheckForFilesystemChanges()
+// If the value changes then the "GameContentChanged" hook is called
 int CBaseFileSystem::LastFilesystemRefresh()
 {
 	return m_iRefreshCounter;
