@@ -3,6 +3,7 @@
 #include "garrysmod/public/IAddonSystem.h"
 #include "steam/isteamugc.h"
 #include "unordered_stuff.h"
+#include <deque> 
 
 namespace Addon
 {
