@@ -5,9 +5,10 @@
 namespace GarrysMod
 {
 
-class DedicatedServer
+// RaphaelIT7:
+// This actually isn't a class
+namespace DedicatedServer
 {
-public:
 	// Called from DownloadAddon
 	void MountAddon(SteamUGCDetails_t unknown1, std::string unknown2, bool unknown3);
 

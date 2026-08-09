@@ -61,7 +61,7 @@ public:
 
 	virtual void Clear( ) = 0;
 	virtual void Refresh( ) = 0;
-	virtual int MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource ) = 0;
+	virtual bool MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource ) = 0;
 	virtual bool ShouldMount( uint64_t wsid ) = 0;
 	virtual void SetShouldMount( uint64_t wsid, bool bShouldMount ) = 0;
 	virtual void Save( ) = 0;
@@ -75,10 +75,10 @@ public:
 	virtual const IAddonSystem::Information *FindFileOwner( const std::string & ) = 0;
 	virtual void AddAddon( const IAddonSystem::Information & ) = 0;
 	virtual void ClearUnusedGMAs( ) = 0;
-	virtual const std::string& GetAddonFilepath( uint64_t wsid, bool ) = 0;
+	virtual std::string GetAddonFilepath( uint64_t wsid, bool ) = 0;
 	virtual void UnmountAddon( uint64_t wsid, const char* ) = 0;
 	virtual void UnmountServerAddons( ) = 0;
-	virtual void IsAddonValidPreInstall( SteamUGCDetails_t ) = 0;
+	virtual std::string IsAddonValidPreInstall( SteamUGCDetails_t ) = 0;
 	virtual bool AllJobsFinished() = 0;
 	virtual void Shutdown( ) = 0;
 	virtual void AddJob( Addon::Job::Base * ) = 0;

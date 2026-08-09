@@ -1,4 +1,5 @@
 #include "garrysmod/AddonFileSystem.h"
+#include "garrysmod/DedicatedServerAddons.h"
 #include "garrysmod/public/IAddonDownloadNotify.h"
 #include "garrysmod/public/IGet.h"
 #include "garrysmod/tasks/Tasks.h"
@@ -16,14 +17,17 @@ void Addon::FileSystem::Refresh()
 {
 	Msg( "Addon::FileSystem::Refresh\n" );
 
+	UpdateModPath();
 	Load();
 	MarkChanged();
 }
 
-int Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource unknown )
+// RaphaelIT7 (ToDo):
+// It currently crashes after the last call made here, idk why.
+bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource unknown )
 {
 	Msg( "Addon::FileSystem::MountFile\n" );
-	return 0;
+	return false;
 }
 
 bool Addon::FileSystem::ShouldMount( uint64_t wsid )
@@ -98,49 +102,80 @@ const std::list<IAddonSystem::UGCInfo>& Addon::FileSystem::GetUGCList( ) const
 
 void Addon::FileSystem::ScanForSubscriptions( const char *unknown1, bool unknown2 ) // NOTE: Gmod uses the Steamworks 1.57. The sourcesdk-minimal was outdated.
 {
-	Msg("CAddonFileSystem::ScanForSubscriptions (%s)\n", unknown1);
-	if (!get) {
-		Error("SFS: !get");
+	Msg( "CAddonFileSystem::ScanForSubscriptions (%s)\n", unknown1 );
+	if (!get)
+	{
+		Error( "SFS: !get" );
 		return;
 	}
 
-	if (get->IsDedicatedServer()) {
-		Warning("   ^-- TODO: GarrysMod::DedicatedServer::RunAddonProcess!\n");
+	if ( get->IsDedicatedServer() )
+	{
+		Warning( "   ^-- TODO: GarrysMod::DedicatedServer::RunAddonProcess!\n" );
+		GarrysMod::DedicatedServer::RunAddonProcess( unknown1 );
+		MountFloatingAddons();
 		return;
 	}
-	else {
-		m_CallbackSubscribed.Register(this, &Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed);
-		m_CallbackUnsubscribed.Register(this, &Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed);
+	else
+	{
+		m_CallbackSubscribed.Register( this, &Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed );
+		m_CallbackUnsubscribed.Register( this, &Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed );
 
-		AddJob(new Addon::Task::AddFloatingAddons());
-		AddJob(new Addon::Task::GetSubscriptions());
-		AddJob(new Addon::Task::MountAvailable());
+		AddJob( new Addon::Task::AddFloatingAddons() );
+		AddJob( new Addon::Task::GetSubscriptions() );
+		AddJob( new Addon::Task::MountAvailable() );
 
-		if (!IsOfflineMode())
-			AddJob(new Addon::Task::DownloadAddons());
+		if ( !IsOfflineMode() )
+			AddJob( new Addon::Task::DownloadAddons() );
 
 		Think();
 	}
 }
 
-void Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed(RemoteStoragePublishedFileSubscribed_t* info) {
-	if (IsOfflineMode()) 
+void Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed( RemoteStoragePublishedFileSubscribed_t *info )
+{
+	if ( IsOfflineMode() ) 
 		return;
 
-	if (info->m_nAppID != SteamUtils()->GetAppID()) 
+	if ( info->m_nAppID != SteamUtils()->GetAppID() ) 
 		return;
 
-	if (!IsSubscribed(info->m_nPublishedFileId))
-		AddJob(new Addon::Task::OnSubscribed(info->m_nPublishedFileId)); 
+	if ( !IsSubscribed( info->m_nPublishedFileId ) )
+		AddJob( new Addon::Task::OnSubscribed( info->m_nPublishedFileId ) ); 
 }
 
-void Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* info) {
+void Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed( RemoteStoragePublishedFileUnsubscribed_t *info )
+{
 
 }
 
-bool Addon::FileSystem::IsOfflineMode() {
-	if (get->IsDedicatedServer() || !SteamUser())
+
+Addon::FileSystem::FileSystem() :
+	m_CallbackSubscribed( this, &Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed ),
+	m_CallbackUnsubscribed( this, &Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed )
+{
+}
+
+void Addon::FileSystem::UpdateModPath()
+{
+	m_strModPath = get->GameDir();
+	m_strModPath.append( "\\workshop\\" );
+
+	if ( false ) // fs_tellmeyoursecrets.GetBool()
+		Msg( "Addon[UpdateModPath]: ModPath [%s]\n", m_strModPath.c_str() );
+
+	Bootil::String::File::FixSlashes( m_strModPath );
+	Bootil::String::Lower( m_strModPath );
+
+	if ( false ) // fs_tellmeyoursecrets.GetBool()
+		Msg( "Addon[UpdateModPath]: Cleaned [%s]\n", m_strModPath.c_str() );
+}
+
+bool Addon::FileSystem::IsOfflineMode()
+{
+	if ( get->IsDedicatedServer() || !SteamUser() )
 		return true;
+
 	return !SteamUser()->BLoggedOn();
 }
 
@@ -199,16 +234,49 @@ void Addon::FileSystem::ClearUnusedGMAs()
 	AddJob( new Addon::Task::ClearUnusedGMAs );
 }
 
-const std::string& Addon::FileSystem::GetAddonFilepath( uint64_t wsid, bool )
+std::string Addon::FileSystem::GetAddonFilepath( uint64 wsid, bool bGMAOnly )
 {
-	Msg( "Addon::FileSystem::GetAddonFilepath\n" );
-	static std::string empty = "";
-	return empty;
+	Msg( "Addon::FileSystem::GetAddonFilepath(%llu - %s)\n", wsid, bGMAOnly ? "true" : "false" );
+	char szFolder[260];
+	uint64 size;
+	uint32 timestamp;
+	if ( !get->SteamUGC()->GetItemInstallInfo( wsid, &size, szFolder, sizeof( szFolder ), &timestamp ) )
+		return "";
+
+	std::string strSearchPath = Bootil::String::Format::Print("%s/***.*", szFolder);
+
+	FileFindHandle_t hFindHandle;
+	RunCodeAtScopeExit( g_pFullFileSystem->FindClose( hFindHandle ); );
+	const char *pszFileName = g_pFullFileSystem->FindFirstEx( strSearchPath.c_str(), nullptr, &hFindHandle );
+	while ( pszFileName )
+	{
+		std::string strFileName = pszFileName;
+		std::string ext = Bootil::String::File::GetFileExtension( strFileName );
+
+		bool bValid = false;
+		if (bGMAOnly)
+		{
+			if (ext == "gma")
+				bValid = true;
+		}
+		else
+		{
+			if (ext == "gma" || ext == "dupe" || ext == "gms" || ext == "dem")
+				bValid = true;
+		}
+
+		 if ( bValid )
+			return Bootil::String::Format::Print( "%s/%s", szFolder, pszFileName );
+
+		pszFileName = g_pFullFileSystem->FindNext( hFindHandle );
+	}
+
+	return "";
 }
 
-void Addon::FileSystem::UnmountAddon( uint64_t wsid, const char *pszUnknown )
+void Addon::FileSystem::UnmountAddon( uint64_t wsid, const char *pszReason )
 {
-	Msg( "Addon::FileSystem::UnmountAddon (%s)\n", pszUnknown );
+	Msg( "Addon::FileSystem::UnmountAddon (%s)\n", pszReason );
 }
 
 void Addon::FileSystem::UnmountServerAddons()
@@ -216,9 +284,29 @@ void Addon::FileSystem::UnmountServerAddons()
 	Msg( "Addon::FileSystem::UnmountServerAddons\n" );
 }
 
-void Addon::FileSystem::IsAddonValidPreInstall( SteamUGCDetails_t details )
+std::string Addon::FileSystem::IsAddonValidPreInstall( SteamUGCDetails_t details )
 {
 	Msg( "Addon::FileSystem::IsAddonValidPreInstall\n" );
+	if ( details.m_bBanned )
+		return "Addon is banned";
+
+	if ( details.m_eFileType != k_EWorkshopFileTypeCommunity )
+		return "Bad workshop file type";
+
+	if ( details.m_rgchTitle[0] == '\0' )
+		return "Addon is hidden, banned or doesn't exist";
+
+	if ( details.m_nConsumerAppID != 4000 )
+		return "Bad consumer AppID";
+
+	constexpr int LEGACY_CHECK = 0x5E3351E1;
+	if ( ( SteamUGC()->GetItemState( details.m_nPublishedFileId ) & k_EItemStateLegacyItem ) != 0 &&
+		details.m_rtimeCreated >= LEGACY_CHECK )
+	{
+		return "Addon too new to use old API";
+	}
+
+	return "";
 }
 
 bool Addon::FileSystem::AllJobsFinished()

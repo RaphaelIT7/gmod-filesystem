@@ -91,7 +91,9 @@ public:
 	void Cycle() override;
 	bool Finished() override;
 
-	OnSubscribed(unsigned int publishedFileID);
+	OnSubscribed( uint64_t wsid );
+private:
+	uint64_t m_WSID;
 };
 
 class UpdateTotals : public Addon::Job::Base
