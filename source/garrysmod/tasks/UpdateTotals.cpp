@@ -15,3 +15,8 @@ bool Addon::Task::UpdateTotals::Finished()
 {
 	return true;
 }
+
+Addon::Task::UpdateTotals::UpdateTotals(uint32 completed, uint32 total) {
+	m_Completed = completed; 
+	m_Total = total; 
+}

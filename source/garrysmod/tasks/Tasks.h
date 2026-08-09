@@ -103,8 +103,10 @@ public:
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
-	UpdateTotals(uint32 completed, uint32 total) { m_Completed = completed; m_Total = total; }
+	UpdateTotals(uint32 completed, uint32 total);
+
+	uint32_t m_Completed;
+	uint32_t m_Total;
 };
-uint32_t m_Completed;
-uint32_t m_Total;    
+
 }
