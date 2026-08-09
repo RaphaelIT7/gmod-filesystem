@@ -201,7 +201,7 @@ bool CLanguage::GetString( const char *pszPhraseKey, wchar_t *pszPhraseOut, uint
 
 	const char* pszLookupKey = pszPhraseKey;
 	auto it = m_Strings.find( pszLookupKey );
-	if ( it == m_Strings.end() && pszPhraseKey[0] == '#' )
+	if ( it == m_Strings.end() )
 	{
 		pszLookupKey = pszPhraseKey + 1;
 		it = m_Strings.find( pszLookupKey );

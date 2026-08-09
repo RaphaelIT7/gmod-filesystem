@@ -109,7 +109,6 @@ const std::list<IGameDepotSystem::Information> &GameDepot::System::GetList()
 
 int GameDepot::System::GetRefreshCount()
 {
-	Msg( "GameDepot::System::GetRefreshCount()\n" );
 	return m_RefreshCount;
 }
 
