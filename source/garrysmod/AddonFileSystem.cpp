@@ -158,16 +158,16 @@ void Addon::FileSystem::Think()
 	}
 }
 
-void Addon::FileSystem::SetDownloadNotify( IAddonDownloadNotification* pDownloadNotify )
+void Addon::FileSystem::SetDownloadNotify( IAddonDownloadNotification *pDownloadNotify )
 {
 	Msg( "CAddonFileSystem::SetDownloadNotify\n" );
 	m_pDownloadNotify = pDownloadNotify;
 }
 
-int Addon::FileSystem::Notify()
+IAddonDownloadNotification *Addon::FileSystem::Notify()
 {
 	Msg( "CAddonFileSystem::Notify\n" );
-	return 0;
+	return m_pDownloadNotify;
 }
 
 bool Addon::FileSystem::IsSubscribed( uint64_t wsid )

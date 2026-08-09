@@ -21,10 +21,10 @@ namespace Addon
 			virtual void Start() = 0;
 			virtual void Cycle() = 0;
 			virtual bool Finished() = 0;
-			virtual void Init( Addon::FileSystem* pAddonSystem ) { m_pFileSystem = pAddonSystem; }
+			virtual void Init( Addon::FileSystem* pAddonSystem ) { m_pAddonSystem = pAddonSystem; }
 
 		protected:
-			Addon::FileSystem* m_pFileSystem;
+			Addon::FileSystem* m_pAddonSystem;
 		};
 	}
 }
@@ -70,7 +70,7 @@ public:
 	virtual void ScanForSubscriptions( const char *, bool ) = 0;
 	virtual void Think( ) = 0;
 	virtual void SetDownloadNotify( IAddonDownloadNotification * ) = 0;
-	virtual int Notify( ) = 0;
+	virtual IAddonDownloadNotification *Notify( ) = 0;
 	virtual bool IsSubscribed( uint64_t wsid ) = 0;
 	virtual const IAddonSystem::Information *FindFileOwner( const std::string & ) = 0;
 	virtual void AddAddon( const IAddonSystem::Information & ) = 0;

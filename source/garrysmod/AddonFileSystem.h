@@ -21,7 +21,7 @@ public: // IAddonSystem
 	void ScanForSubscriptions( const char *, bool ) override;
 	void Think( ) override;
 	void SetDownloadNotify( IAddonDownloadNotification *pDownloadNotify ) override;
-	int Notify( ) override;
+	IAddonDownloadNotification *Notify( ) override;
 	bool IsSubscribed( uint64_t wsid ) override;
 	const IAddonSystem::Information *FindFileOwner( const std::string & ) override;
 	void AddAddon( const IAddonSystem::Information & ) override;
