@@ -98,7 +98,50 @@ const std::list<IAddonSystem::UGCInfo>& Addon::FileSystem::GetUGCList( ) const
 
 void Addon::FileSystem::ScanForSubscriptions( const char *unknown1, bool unknown2 ) // NOTE: Gmod uses the Steamworks 1.57. The sourcesdk-minimal was outdated.
 {
-	Msg( "CAddonFileSystem::ScanForSubscriptions (%s)\n", unknown1 );
+	Msg("CAddonFileSystem::ScanForSubscriptions (%s)\n", unknown1);
+	if (!get) {
+		Error("SFS: !get");
+		return;
+	}
+
+	if (get->IsDedicatedServer()) {
+		Warning("   ^-- TODO: GarrysMod::DedicatedServer::RunAddonProcess!\n");
+		return;
+	}
+	else {
+		m_CallbackSubscribed.Register(this, &Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed);
+		m_CallbackUnsubscribed.Register(this, &Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed);
+
+		AddJob(new Addon::Task::AddFloatingAddons());
+		AddJob(new Addon::Task::GetSubscriptions());
+		AddJob(new Addon::Task::MountAvailable());
+
+		if (!IsOfflineMode())
+			AddJob(new Addon::Task::DownloadAddons());
+
+		Think();
+	}
+}
+
+void Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed(RemoteStoragePublishedFileSubscribed_t* info) {
+	if (IsOfflineMode()) 
+		return;
+
+	if (info->m_nAppID != SteamUtils()->GetAppID()) 
+		return;
+
+	if (!IsSubscribed(info->m_nPublishedFileId))
+		AddJob(new Addon::Task::OnSubscribed(info->m_nPublishedFileId)); 
+}
+
+void Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* info) {
+
+}
+
+bool Addon::FileSystem::IsOfflineMode() {
+	if (get->IsDedicatedServer() || !SteamUser())
+		return true;
+	return !SteamUser()->BLoggedOn();
 }
 
 void Addon::FileSystem::Think()

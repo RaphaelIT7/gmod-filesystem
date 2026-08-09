@@ -90,6 +90,8 @@ public:
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
+
+	OnSubscribed(unsigned int publishedFileID);
 };
 
 class UpdateTotals : public Addon::Job::Base

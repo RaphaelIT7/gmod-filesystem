@@ -47,6 +47,10 @@ public: // IAddonSystem
 
 public: // FileSystem
 
+	bool IsOfflineMode();
+	void OnRemoteStoragePublishedFileSubscribed(RemoteStoragePublishedFileSubscribed_t* info);
+	void OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* info);
+
 private:
 	bool m_bChanged = false;
 	std::list<IAddonSystem::Information> m_Addons;
@@ -54,6 +58,8 @@ private:
 	std::list<SteamUGCDetails_t> m_Subscriptions;
 	unordered_set<uint64_t> m_AddonNoMount;
 	IAddonDownloadNotification* m_pDownloadNotify = nullptr;
+	CCallback<Addon::FileSystem, RemoteStoragePublishedFileSubscribed_t> m_CallbackSubscribed;
+	CCallback<Addon::FileSystem, RemoteStoragePublishedFileUnsubscribed_t> m_CallbackUnsubscribed;
 };
 
 }
