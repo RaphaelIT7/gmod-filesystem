@@ -19,6 +19,10 @@
 #include "zip_utils.h"
 #include "packfile.h"
 
+#ifdef POSIX
+#include "linux_support.h"
+#endif
+
 #ifndef DEDICATED
 #include "keyvaluescompiler.h"
 #endif
@@ -5827,9 +5831,19 @@ void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const cha
 }
 
 // RaphaelIT7:
-// This one seems to actually live in CFileSystem_Stdio?
+// This one seems to actually live in CFileSystem_Stdio? (But it doesn't matter)
 // It also doesn't seem to exist in newer builds. So we can leave this be for now I guess.
-void CBaseFileSystem::GMOD_FixPathCase( char *pszUnknown1, size_t nUnknown2 )
+// Update: It does exist in newer build and in fact is called
+void CBaseFileSystem::GMOD_FixPathCase( char *pszPath, size_t nPathLength )
 {
-	Msg( "CFileSystem_Stdio::GMOD_FixPathCase\n" );
+	Msg( "CBaseFileSystem::GMOD_FixPathCase\n" );
+
+	char szFixedPath[260];
+#ifdef POSIX
+	struct stat st;
+	if ( stat(pszPath, &st) == -1 && findFileInDirCaseInsensitive( pszPath, fixedPath, sizeof( szFixedPath ) ) )
+		V_strncpy( name, fixedPath, nPathLength );
+#else
+	// RaphaelIT7 (ToDo): This one must be done- though I got no idea as I can't find it in IDA
+#endif
 }
