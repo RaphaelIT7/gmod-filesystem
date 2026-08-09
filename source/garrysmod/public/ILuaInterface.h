@@ -9,7 +9,7 @@
 #define GMOD_UNDEFME
 #endif
 #include "GarrysMod/Lua/Types.h"
-#if GMOD_UNDEFME
+#ifdef GMOD_UNDEFME
 #undef GMOD
 #undef GMOD_UNDEFME
 #endif

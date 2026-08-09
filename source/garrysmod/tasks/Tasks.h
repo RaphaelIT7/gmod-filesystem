@@ -1,7 +1,7 @@
 #pragma once
 
 #include "garrysmod/AddonFileSystem.h"
-#include "bootil/Bootil.h"
+#include "Bootil/Bootil.h"
 #include "filesystem.h"
 #include "steam_api.h"
 
