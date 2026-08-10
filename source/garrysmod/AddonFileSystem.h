@@ -7,6 +7,14 @@
 
 namespace Addon
 {
+enum class AddonType {
+	Unknown = 0,
+	Addon = 1,
+	Dupe = 2,
+	Save = 3,
+	Demo = 4,
+	ServerContent = 5,
+};
 
 class FileSystem : public IAddonSystem
 {
@@ -52,6 +60,8 @@ public: // FileSystem
 	bool IsOfflineMode();
 	void OnRemoteStoragePublishedFileSubscribed(RemoteStoragePublishedFileSubscribed_t* info);
 	void OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* info);
+	Addon::AddonType GetAddonType(SteamUGCDetails_t details);
+	void AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type);
 
 private:
 	bool m_bChanged = false;

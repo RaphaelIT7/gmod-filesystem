@@ -226,12 +226,24 @@ const IAddonSystem::Information* Addon::FileSystem::FindFileOwner( const std::st
 void Addon::FileSystem::AddAddon( const IAddonSystem::Information &info )
 {
 	Msg( "Addon::FileSystem::AddAddon\n" );
+	m_Addons.push_back(info);
 }
 
 void Addon::FileSystem::ClearUnusedGMAs()
 {
 	Msg( "Addon::FileSystem::ClearUnusedGMAs\n" );
 	AddJob( new Addon::Task::ClearUnusedGMAs );
+}
+
+Addon::AddonType Addon::FileSystem::GetAddonType(SteamUGCDetails_t details)
+{
+	const char* tags = details.m_rgchTags;
+	if (V_stristr(tags, "dupe,") || V_stristr(tags, ",dupe"))                   return Addon::AddonType::Dupe;         
+	if (V_stristr(tags, "save,") || V_stristr(tags, ",save"))                   return Addon::AddonType::Save;         
+	if (V_stristr(tags, "demo,") || V_stristr(tags, ",demo"))                   return Addon::AddonType::Demo;         
+	if (V_stristr(tags, "addon,") || V_stristr(tags, ",addon"))                 return Addon::AddonType::Addon;        
+	if (V_stristr(tags, "servercontent,") || V_stristr(tags, ",servercontent")) return Addon::AddonType::ServerContent;
+	return Addon::AddonType::Unknown;
 }
 
 std::string Addon::FileSystem::GetAddonFilepath( uint64 wsid, bool bGMAOnly )
@@ -354,9 +366,55 @@ void Addon::FileSystem::MountFloatingAddons()
 	g_pFullFileSystem->FindClose( hFindHandle );
 }
 
-void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& )
+void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& details)
 {
-	Msg( "Addon::FileSystem::AddAddonFromSteamDetails\n" );
+	for (const auto& info : m_Addons)
+		if (info.wsid == details.m_nPublishedFileId)
+			return;
+
+	Addon::AddonType type = GetAddonType(details);
+
+	switch (type)
+	{
+	case Addon::AddonType::Addon:
+	{
+		IAddonSystem::Information info = {};
+		info.title = details.m_rgchTitle;
+		info.tags = details.m_rgchTags;
+		info.wsid = details.m_nPublishedFileId;
+		info.creator = details.m_ulSteamIDOwner;
+		info.time_updated = details.m_rtimeUpdated;
+		info.size = details.m_nFileSize;
+		info.hcontent_file = details.m_hFile;
+		info.hcontent_preview = details.m_hPreviewFile;
+		info.timeadded = details.m_rtimeAddedToUserList;
+		AddAddon(info);
+		break;
+	}
+
+	case Addon::AddonType::Dupe:
+	case Addon::AddonType::Save:
+	case Addon::AddonType::Demo:
+	case Addon::AddonType::ServerContent:
+		AddUGCFile(details, type);
+		break;
+
+	default:
+		// Unknown tag: warn / ignore
+		Warning("Addon has unknown type, ignoring (%llu)\n", details.m_nPublishedFileId);
+		break;
+	}
+}
+
+void Addon::FileSystem::AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type)
+{
+	IAddonSystem::UGCInfo info = {};
+	info.title = details.m_rgchTitle;
+	info.file = GetAddonFilepath(details.m_nPublishedFileId, false);
+	info.wsid = details.m_nPublishedFileId;
+	info.creator = details.m_ulSteamIDOwner;
+	info.pubdate = details.m_rtimeUpdated;  
+	m_UgcAddons.push_back(info);
 }
 
 void Addon::FileSystem::OnAddonSubscribed( const SteamUGCDetails_t& )
