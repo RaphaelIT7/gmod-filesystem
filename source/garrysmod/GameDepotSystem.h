@@ -22,10 +22,10 @@ public: // IGameDepotSystem
 
 public: // System
 	System();
-	void FindGame(std::string* param_1);
-	bool MountAsSteampipe(Information* param_1, bool param_2);
-	void Mount(Information* param_1, bool param_2);
-	void MountAsFallback(Information* param_1);
+	void FindGame( std::string &param_1 );
+	bool MountAsSteampipe( Information &param_1, bool param_2 );
+	void Mount( Information &param_1, bool param_2 );
+	void MountAsFallback( Information &param_1 );
 	void Load();
 	void Setup();
 

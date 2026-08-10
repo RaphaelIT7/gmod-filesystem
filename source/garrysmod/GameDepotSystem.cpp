@@ -54,12 +54,12 @@ void GameDepot::System::Refresh()
 	Clear();
 	Load();
 
-	for ( auto &v : m_MountedGames )
+	for ( auto &game : m_MountedGames )
 	{
-		if ( v.owned && v.installed && v.mounted )
-			Mount( &v, false);
-		else if ( v.retail )
-			MountAsFallback(&v);
+		if ( game.owned && game.installed && game.mounted )
+			Mount( game, false );
+		else if ( game.retail )
+			MountAsFallback( game );
 	}
 }
 
@@ -118,60 +118,69 @@ GameDepot::System::System()
 	Msg( "GameDepot::System::System()\n" );
 }
 
-void GameDepot::System::FindGame( std::string* param_1 )
+void GameDepot::System::FindGame( std::string &param_1 )
 {
 	Msg( "GameDepot::System::FindGame()\n" );
 }
 
-bool GameDepot::System::MountAsSteampipe( Information* param_1, bool param_2 )
+bool GameDepot::System::MountAsSteampipe( Information &game, bool param_2 )
 {
 	Msg( "GameDepot::System::MountAsSteampipe()\n" );
-	return true; // TODO
+#ifdef DEDICATED
+	return true;
+#else
+
+	std::string strGamePath = GetAppInstallDir_FixedCase( game.appid );
+	if ( strGamePath.empty() )
+		return false;
+
+	return false; // TODO
 	// ^^ I think this is the process of mounting VPK's
 	// RaphaelIT7: On Linux DS this does nothing but you can find the code in filesystem_stdio.dylib (macos build)
+#endif
 }
 
-void GameDepot::System::Mount( Information *mountGameInfo, bool mount )
+void GameDepot::System::Mount( Information &mountGameInfo, bool mount )
 {
 	DevMsg( "Mounting game '%s' (%s, %i)...\n",
-		mountGameInfo->title.c_str(), mountGameInfo->folder.c_str(), mountGameInfo->appid );
+		mountGameInfo.title.c_str(), mountGameInfo.folder.c_str(), mountGameInfo.appid );
 
-	if ( MountAsSteampipe( mountGameInfo, mount) )  
+	if ( MountAsSteampipe( mountGameInfo, mount ) )  
 		return;
 
-	if (mountGameInfo->folder == "hl2")
+	if ( mountGameInfo.folder == "hl2" )
 		return;
 
-	if (mount)
+	if ( mount )
 	{
-		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_CURRENTGAME ) );
-		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), mountGameInfo->folder.c_str(), PRIORITY_GROUP_HEAD( GN_CURRENTGAME ) );
+		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_CURRENTGAME ) );
+		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), mountGameInfo.folder.c_str(), PRIORITY_GROUP_HEAD( GN_CURRENTGAME ) );
 	}
 	else
 	{
-		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
-		g_pFullFileSystem->AddSearchPath( mountGameInfo->folder.c_str(), mountGameInfo->folder.c_str(), PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) );
+		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
+		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), mountGameInfo.folder.c_str(), PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) );
 	}
 
-	g_pFullFileSystem->MarkPathIDByRequestOnly(mountGameInfo->folder.c_str(), true);
+	g_pFullFileSystem->MarkPathIDByRequestOnly(mountGameInfo.folder.c_str(), true);
 
-	if (mountGameInfo->enabled)
-		g_pFullFileSystem->AddSearchPath("pak01", mountGameInfo->folder.c_str(), 21);
+	if (mountGameInfo.enabled)
+		g_pFullFileSystem->AddSearchPath("pak01", mountGameInfo.folder.c_str(), 21);
 }
 
-void GameDepot::System::MountAsFallback( Information *info )
+void GameDepot::System::MountAsFallback( Information &info )
 {
-	DevMsg("Mounting game '%s' as fallback (%s, %i)...\n", info->title.c_str(), info->folder.c_str(), info->appid);
+	DevMsg("Mounting game '%s' as fallback (%s, %i)...\n", info.title.c_str(), info.folder.c_str(), info.appid);
 
 	std::string path = get->GameDir();
 	path += "\\sourceengine\\";
 	path += "content_";
-	path += info->title.c_str();
+	path += info.title.c_str();
 	path += ".vpk";
 
 	g_pFullFileSystem->AddSearchPath( path.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
-	g_pFullFileSystem->AddSearchPath( path.c_str(), info->folder.c_str(), PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
-	g_pFullFileSystem->MarkPathIDByRequestOnly( info->folder.c_str(), true );
+	g_pFullFileSystem->AddSearchPath( path.c_str(), info.folder.c_str(), PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
+	g_pFullFileSystem->MarkPathIDByRequestOnly( info.folder.c_str(), true );
 }
 
 #define GAMEDEPOTSYSTEM "gamedepotsystem"
@@ -249,6 +258,8 @@ void GameDepot::System::Setup()
 	{
 		game.owned = SteamApps()->BIsSubscribedApp( game.appid );
 		game.installed = SteamApps()->BIsAppInstalled( game.appid );
+		// RaphaelIT7: Apparently I was wrong with this
+#if 0
 		if ( game.owned && game.installed )
 		{
 			// RaphaelIT7: GetAppInstallDir_FixedCase differs in some way- idk what it is yet.
@@ -258,6 +269,7 @@ void GameDepot::System::Setup()
 
 			game.folder = strGamePath;
 		}
+#endif
 	}
 #endif
 

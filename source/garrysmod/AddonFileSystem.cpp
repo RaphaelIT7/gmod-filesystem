@@ -131,6 +131,7 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 		info.m_strFileName = strFileName;
 		info.m_strFullFileName = strFixedFile;
 		info.m_nSize = fileEntry.iSize;
+		info.m_nOffset = fileEntry.iOffset;
 		info.m_hFileHandle = hFileHandle;
 		info.m_nWsid = wsid;
 
@@ -290,6 +291,56 @@ void Addon::FileSystem::UpdateModPath()
 
 	if ( false ) // fs_tellmeyoursecrets.GetBool()
 		Msg( "Addon[UpdateModPath]: Cleaned [%s]\n", m_strModPath.c_str() );
+}
+
+// RaphaelIT7:
+// Oh my god this is horrible
+// I get what GMod is doing now.
+// So they hook into HandleOpenRegularFile and try to match ANY entry until the workshop/ searchpath is tried...
+// and only in that case this will match and can hit a Addon file.
+void Addon::FileSystem::NormalizePath( std::string& strFileName )
+{
+	Bootil::String::File::FixSlashes( strFileName );
+	Bootil::String::Lower( strFileName );
+	Bootil::String::Util::Trim( strFileName );
+	Bootil::String::Util::FindAndReplace( strFileName, "//", "/" );
+
+	if ( strFileName.length() > m_strModPath.length() && Bootil::String::Test::StartsWith( strFileName, m_strModPath ) )
+		strFileName.assign( strFileName.c_str() + m_strModPath.length() );
+}
+
+// RaphaelIT7 (ToDo):
+// We are missing ALL the fs_tellmeyoursecrets prints... we don't even have the convar yet
+Addon::FileInfo *Addon::FileSystem::GetFile( std::string strFileName )
+{
+	// Msg( "Addon::FileSystem::GetFile(%s)\n", strFileName.c_str() );
+	std::string strNormalizedPath = strFileName;
+	NormalizePath( strNormalizedPath );
+
+	std::string folderPath = strNormalizedPath;
+	Bootil::String::File::StripFilename( folderPath );
+
+	Folder* folder = GetFolder( folderPath, false );
+	if ( !folder || !folder->size() )
+		return nullptr;
+
+	std::string fileName = strNormalizedPath;
+	Bootil::String::File::ExtractFilename( fileName );
+
+	auto it = folder->find( fileName );
+	if ( it == folder->end() )
+		return nullptr;
+
+	return &it->second;
+}
+
+Addon::FileHandle *Addon::FileSystem::GetFileEntry( std::string strFileName )
+{
+	FileInfo *pInfo = GetFile( strFileName );
+	if ( !pInfo )
+		return nullptr;
+
+	return new Addon::FileHandle( pInfo );
 }
 
 bool Addon::FileSystem::IsOfflineMode()
@@ -577,4 +628,24 @@ void Addon::FileSystem::OnAddonDownloadFailed( const IAddonSystem::Information &
 
 void Addon::FileSystem::Load()
 {
+}
+
+void Addon::FileSystem::FindInAddon( const std::string &pPath, const std::string &pSearchPath, std::list<Addon::SearchFile> &results )
+{
+	for ( auto it = m_Folders.begin(); it != m_Folders.end(); ++it )
+	{
+		const std::string& folderName = it->first;
+		if ( folderName.size() != pPath.size() )
+			continue;
+
+		if ( folderName != pPath )
+			continue;
+
+		FindFirst( pSearchPath, results, 0 );
+	}
+}
+
+void Addon::FileSystem::FindFirst( const std::string &pPath, std::list<Addon::SearchFile> &results, FileHandle_t hFileHandle )
+{
+
 }

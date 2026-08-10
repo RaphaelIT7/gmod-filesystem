@@ -2145,6 +2145,21 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 		openInfo.SetResolvedFilename( openInfo.m_AbsolutePath );
 		
 		LogFileOpen( "Loose", openInfo.m_pFileName, openInfo.m_AbsolutePath );
+
+		// GMod - Returns on hit
+		return;
+	}
+
+	// RaphaelIT7 (ToDo): We should be able to optimize this very easily.
+	Addon::FileHandle *pHandle = m_AddonFileSystem.GetFileEntry( openInfo.m_AbsolutePath );
+	if ( pHandle )
+	{
+		openInfo.m_pFileHandle = new CFileHandle( this );
+		openInfo.m_pFileHandle->m_pAddonFileHandle = pHandle;
+		openInfo.m_pFileHandle->m_type = FT_NORMAL;
+		openInfo.m_pFileHandle->m_nLength = pHandle->Size();
+
+		openInfo.SetResolvedFilename( openInfo.m_AbsolutePath );
 	}
 }
 
@@ -5112,6 +5127,7 @@ void CFileHandle::Init( CBaseFileSystem *fs )
 	m_pFile = nullptr;
 	m_nLength = 0;
 	m_type = FT_NORMAL;		
+	m_pAddonFileHandle = nullptr; // GMod
 	m_pPackFileHandle = nullptr;
 
 	m_fs = fs;
@@ -5200,6 +5216,12 @@ int CFileHandle::Read( void* pBuffer, int nDestSize, int nLength )
 {
 	Assert( IsValid() );
 
+	// GMod
+	if ( m_pAddonFileHandle )
+	{
+		return m_pAddonFileHandle->Read( pBuffer, nDestSize, nLength );
+	}
+
 #if defined( SUPPORT_PACKED_STORE )
 	if ( m_VPKHandle )
 	{
@@ -5256,6 +5278,12 @@ unsigned int CFileHandle::Seek( int64 nOffset, int nWhence )
 {
 	Assert( IsValid() );
 
+	// GMod
+	if ( m_pAddonFileHandle )
+	{
+		return m_pAddonFileHandle->Seek( nOffset, nWhence );
+	}
+
 #if defined( SUPPORT_PACKED_STORE )
 	if ( m_VPKHandle )
 	{
@@ -5285,6 +5313,12 @@ unsigned int CFileHandle::Seek( int64 nOffset, int nWhence )
 unsigned int CFileHandle::Tell()
 {
 	Assert( IsValid() );
+
+	// GMod
+	if ( m_pAddonFileHandle )
+	{
+		return m_pAddonFileHandle->Tell();
+	}
 
 #if defined( SUPPORT_PACKED_STORE )
 	if ( m_VPKHandle )
@@ -5316,6 +5350,12 @@ unsigned int CFileHandle::Size()
 	Assert( IsValid() );
 
 	unsigned nReturnedSize = std::numeric_limits<unsigned>::max();
+
+	// GMod
+	if ( m_pAddonFileHandle )
+	{
+		return m_pAddonFileHandle->Size();
+	}
 
 #if defined( SUPPORT_PACKED_STORE )
 	if ( m_VPKHandle )
