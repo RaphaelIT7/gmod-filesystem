@@ -30,7 +30,8 @@ struct MountedAddon
 
 struct SearchFile
 {
-
+	std::string m_strFileName;
+	bool        m_bFound = false;
 };
 
 using Folder = std::map<std::string, Addon::FileInfo>;

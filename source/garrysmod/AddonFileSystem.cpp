@@ -645,7 +645,37 @@ void Addon::FileSystem::FindInAddon( const std::string &pPath, const std::string
 	}
 }
 
-void Addon::FileSystem::FindFirst( const std::string &pPath, std::list<Addon::SearchFile> &results, FileHandle_t hFileHandle )
+void Addon::FileSystem::FindFirst( const std::string& pPath, std::list<Addon::SearchFile>& results, FileHandle_t hFileHandle )
 {
+	std::string path = pPath;
+	NormalizePath( path );
+	if ( false /* fs_tellmeyoursecrets.GetBool() */ )
+		Msg( "Addon[FindFirst]: NormalizePath [%s]\n", path.c_str() );
 
+	std::string strDir = path;
+	Bootil::String::File::StripFilename( strDir );
+	if ( false /* fs_tellmeyoursecrets.GetBool() */ )
+		Msg( "Addon[FindFirst]: strDir [%s]\n", strDir.c_str() );
+
+	Folder* folder = GetFolder( path, false );
+	if ( !folder || folder->empty( ))
+		return;
+
+	for ( auto& [name, info] : *folder )
+	{
+		if ( !Bootil::String::Test::Wildcard( strDir, name ) )
+			continue;
+
+		std::string full = strDir + name;
+
+		if ( !Bootil::String::Test::Wildcard( full, full ) )
+			continue;
+
+		if ( false /* fs_tellmeyoursecrets.GetBool() */ )
+			Msg( "Addon[FindFirst]: Adding File [%s]\n", full.c_str() );
+
+		SearchFile sf;
+		sf.m_strFileName = full;
+		results.push_back( std::move( sf ) );
+	}
 }
