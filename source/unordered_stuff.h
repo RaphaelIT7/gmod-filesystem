@@ -37,7 +37,7 @@ struct StringHash
 {
     using is_transparent = void;
     size_t operator()(std::string_view sv) const noexcept {
-        return ankerl::unordered_dense::hash<std::string_view>{}(sv);
+        return (size_t)ankerl::unordered_dense::hash<std::string_view>{}(sv);
     }
 };
 

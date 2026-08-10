@@ -57,7 +57,20 @@ public:
 		uint32_t pubdate;
 	};
 
-	struct AddonSource {}; // unknown
+	struct AddonSource
+	{
+		AddonSource( int unknown ) : m_UnknownValue(unknown)
+		{
+		
+		}
+
+		bool operator==(const AddonSource& other) const
+		{
+			return m_UnknownValue == other.m_UnknownValue;
+		}
+
+		int m_UnknownValue;
+	}; // unknown
 
 	virtual void Clear( ) = 0;
 	virtual void Refresh( ) = 0;

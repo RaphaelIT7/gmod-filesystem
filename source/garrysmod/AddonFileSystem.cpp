@@ -3,6 +3,7 @@
 #include "garrysmod/public/IAddonDownloadNotify.h"
 #include "garrysmod/public/IGet.h"
 #include "garrysmod/tasks/Tasks.h"
+#include "garrysmod/AddonReader.h"
 #include "tier1/keyvalues.h"
 #include "sdk_backports.h"
 #include "filesystem.h"
@@ -22,12 +23,132 @@ void Addon::FileSystem::Refresh()
 	MarkChanged();
 }
 
+Addon::Folder* Addon::FileSystem::GetFolder( const std::string &strPath, bool bCreate )
+{
+	std::string strCleanPath = strPath;
+	Bootil::String::File::CleanPath( strCleanPath );
+
+	auto it = m_Folders.find( strCleanPath );
+	if ( it != m_Folders.end() )
+		return &it->second;
+
+	if ( !bCreate )
+		return nullptr;
+
+	it = m_Folders.emplace( strCleanPath, std::map<std::string, FileInfo>{} ).first;
+	return &it->second;
+}
+
 // RaphaelIT7 (ToDo):
 // It currently crashes after the last call made here, idk why.
-bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource unknown )
+bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource source )
 {
 	Msg( "Addon::FileSystem::MountFile\n" );
-	return false;
+
+	std::string strAddonPath = gmaPath;
+	Bootil::String::Lower( strAddonPath );
+
+	static const std::string strContentPrefix = "content/4000/";
+	if ( Bootil::String::Test::StartsWith( strAddonPath, strContentPrefix ) )
+	{
+		const size_t slash = strAddonPath.find( '/', strContentPrefix.length() );
+		if ( slash != std::string::npos )
+		{
+			const std::string strWSID = strAddonPath.substr( strContentPrefix.length(), slash - strContentPrefix.length() );
+			const uint64_t nContentWSID = Bootil::String::To::UInt64( strWSID );
+			if ( nContentWSID != 0 )
+			{
+				strAddonPath.swap( GetAddonFilepath( nContentWSID, true ) );
+				wsid = nContentWSID;
+			}
+		}
+	}
+
+	std::string lowerAddonPath = strAddonPath;
+	Bootil::String::Lower( lowerAddonPath );
+
+	bool alreadyMounted = false;
+	for ( auto it = m_MountedAddons.begin(); it != m_MountedAddons.end(); ++it )
+	{
+		const std::string& mountedPath = it->m_strPath;
+		if ( Bootil::String::Test::EndsWith( lowerAddonPath, mountedPath ) )
+		{
+			alreadyMounted = true;
+			break;
+		}
+	}
+
+	if ( alreadyMounted )
+	{
+		if ( source == IAddonSystem::AddonSource( 1 ) )
+		{
+			Msg( "Addon '%s' is already mounted, ignoring...\n", strAddonPath.c_str() );
+			return true;
+		}
+	}
+
+	Addon::Reader reader( wsid2 );
+	if ( !reader.OpenFile( strAddonPath ) )
+	{
+		Warning( "Couldn't mount file [%s]\n", strAddonPath.c_str() );
+		return false;
+	}
+
+	FileHandle_t hFileHandle = reader.GetPackFile();
+	if ( !hFileHandle )
+	{
+		Warning( "Couldn't mount file [%s] (invalid pack file)\n", strAddonPath.c_str() );
+		return false;
+	}
+
+	const bool addonFlag = !alreadyMounted &&
+		( source == IAddonSystem::AddonSource( 1 ) || source == IAddonSystem::AddonSource( 2 ) );
+
+	MountedAddon addon;
+	addon.m_strPath = strAddonPath;
+	addon.m_strTitle = "";
+	addon.m_hFileHandle = hFileHandle;
+	addon.m_nWsid = wsid;
+	addon.m_nWsid2 = wsid2;
+	addon.m_bSomeFlag = addonFlag;
+
+	m_MountedAddons.push_back( std::move( addon ) );
+
+	for ( int i = 0; i < reader.GetNumFiles(); ++i )
+	{
+		Addon::FileEntry& fileEntry = reader.GetFile( i );
+
+		std::string strFixedFile = fileEntry.strName;
+		Bootil::String::File::FixSlashes( strFixedFile, "/", "\\" );
+		Bootil::String::File::StripFilename( strFixedFile );
+
+		Folder* pFolder = GetFolder( strFixedFile, true );
+
+		std::string strFileName = fileEntry.strName;
+		Bootil::String::File::ExtractFilename( strFileName );
+
+		FileInfo info;
+		info.m_strFileName = strFileName;
+		info.m_strFullFileName = strFixedFile;
+		info.m_nSize = fileEntry.iSize;
+		info.m_hFileHandle = hFileHandle;
+		info.m_nWsid = wsid;
+
+		auto existing = pFolder->find( strFileName );
+		if ( existing != pFolder->end() )
+		{
+			FileInfo& oldInfo = existing->second;
+			if ( oldInfo.m_nWsid != wsid && Bootil::String::Test::EndsWith( strFileName, ".lua" ) )
+				Warning( "Addon '%s' (%llu) contains file from %llu: '%s'\n", strAddonPath.c_str(), wsid , oldInfo.m_nWsid , oldInfo.m_strFileName.c_str() );
+
+			existing->second = std::move( info );
+		}
+		else
+			pFolder->emplace( strFileName, std::move( info ) );
+	}
+
+	reader.ExtractFiles();
+	return true;
 }
 
 bool Addon::FileSystem::ShouldMount( uint64_t wsid )

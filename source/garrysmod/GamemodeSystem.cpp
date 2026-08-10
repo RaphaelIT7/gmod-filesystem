@@ -58,9 +58,24 @@ void Gamemode::System::Clear()
 	m_Gamemodes.clear();
 	g_pFullFileSystem->RemoveSearchPathsByGroup( PRIORITY_GROUP_HEAD( GN_GMCONTENT ) );
 
+	int* DLLIdentifier = ConVar_GetDLLIdentifier();
+	int CurrentID = *DLLIdentifier;
+	// We must override it here since the vtable func GetDLLIdentifier() returns s_nDLLIdentifier
+	*DLLIdentifier = m_ConVarIdentifier;
+
 	// RaphaelIT7: Our custom setup to not leak memory
 	g_pCVar->UnregisterConCommands( m_ConVarIdentifier );
-	m_ConVarArena.release();
+	// RaphaelIT7 - Update:
+	// Learned the hard way why this probably isn't done.
+	// It will crash in vstdlib for whatever reason even though its not expected to keep any references anymore.
+	// ToDo:
+	// So doing the above code for s_nDLLIdentifier fixed the vstdlib crash
+	// BUT the local m_pNext chain for ConCommandBase's is probably invalid too
+	// So we must probably clean that up
+	// Right now were getting else a crash in the menusystem.dll and I'm just gonna guess that it's trying to iterate convars.
+	// m_ConVarArena.release();
+
+	*DLLIdentifier = CurrentID;
 }
 
 const IGamemodeSystem::Information& Gamemode::System::Active()
@@ -103,6 +118,15 @@ const std::list<IGamemodeSystem::Information>& Gamemode::System::GetList() const
 bool Gamemode::System::IsServerBlacklisted( char const* address, char const* hostname, char const* description, char const* gm, char const* map )
 {
 	return get->MenuSystem()->IsServerBlacklisted( address, hostname, description, gm, map );
+}
+
+// RaphaelIT7:
+// Just spent like an hour to figure out why it was crashing.
+// This one is sneakily called from CServerAddons::MountDownloadedAddons (client.dll - "WorkshopDL: Failed to mount %s\n") as the very last thing
+void Gamemode::System::OnServerDownloadsMounted()
+{
+	// Do some fancy checks? Idk
+	Refresh();
 }
 
 Gamemode::System::System()
@@ -195,7 +219,7 @@ void Gamemode::System::AddGamemode( std::string strGamemode )
 			// This one I reported a long while ago xD
 			// BUT GMod checks this differently... Instead of one search they do two?
 			// One for FindVar & one FindCommand
-			ConCommandBase* pVar = g_pCVar->FindCommandBase( name );
+			const ConCommandBase* pVar = g_pCVar->FindCommandBase( name );
 			if ( pVar && pVar->IsCommand() )
 			{
 				Warning( "Not registering convar '%s' for gamemode '%s' because there's a command with that name!\n", name, strGamemode.c_str() );
@@ -212,6 +236,7 @@ void Gamemode::System::AddGamemode( std::string strGamemode )
 			// We can do better :)
 			int* DLLIdentifier = ConVar_GetDLLIdentifier();
 			int CurrentID = *DLLIdentifier;
+			// This probably isn't even needed for adding and probably only for removing
 			*DLLIdentifier = m_ConVarIdentifier; // So that the convar is registered as a m_ConVarIdentifier!
 
 			ConVar* pConVar = ::new ( AllocConVar() ) ConVar( AllocString( name ), AllocString( def ), flags, AllocString( help ));

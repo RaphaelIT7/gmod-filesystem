@@ -28,4 +28,5 @@ public:
 	virtual void SetActive( const std::string &gamemode ) = 0;
 	virtual const std::list<IGamemodeSystem::Information> &GetList( ) const = 0;
 	virtual bool IsServerBlacklisted( char const* address, char const* hostname, char const* description, char const* gm, char const* map ) = 0;
+	virtual void OnServerDownloadsMounted() = 0;
 };

@@ -3,7 +3,9 @@
 #include "garrysmod/public/IAddonSystem.h"
 #include "steam/isteamugc.h"
 #include "unordered_stuff.h"
-#include <deque> 
+#include "AddonFileHandle.h"
+#include <deque>
+#include <map>
 
 namespace Addon
 {
@@ -15,6 +17,19 @@ enum class AddonType {
 	Demo = 4,
 	ServerContent = 5,
 };
+
+struct MountedAddon
+{
+	std::string m_strPath;
+	std::string m_strTitle;
+	FileHandle_t m_hFileHandle;
+	uint64_t m_nWsid;
+	uint64_t m_nWsid2;
+	bool m_bSomeFlag;
+};
+
+using Folder = std::map<std::string, Addon::FileInfo>;
+using Folders = std::map<std::string, Folder>;
 
 class FileSystem : public IAddonSystem
 {
@@ -62,6 +77,7 @@ public: // FileSystem
 	void OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* info);
 	Addon::AddonType GetAddonType(SteamUGCDetails_t details);
 	void AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type);
+	Folder* GetFolder( const std::string &strPath, bool bCreate );
 
 private:
 	bool m_bChanged = false;
@@ -69,6 +85,8 @@ private:
 	std::list<IAddonSystem::Information> m_Addons;
 	std::list<IAddonSystem::UGCInfo> m_UgcAddons;
 	std::list<SteamUGCDetails_t> m_Subscriptions;
+	std::list<MountedAddon> m_MountedAddons;
+	Folders m_Folders;
 	unordered_set<uint64_t> m_AddonNoMount;
 	IAddonDownloadNotification* m_pDownloadNotify = nullptr;
 	std::deque<Addon::Job::Base*> m_Jobs;

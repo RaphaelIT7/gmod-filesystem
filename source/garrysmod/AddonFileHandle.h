@@ -1,13 +1,18 @@
 #pragma once
 
-#include "tier0/platform.h"
+#include "filesystem.h"
+#include <string>
 
 namespace Addon
 {
 
 struct FileInfo
 {
-	const char* m_pszFileName;
+	std::string m_strFileName;
+	std::string m_strFullFileName;
+	int64_t m_nSize;
+	FileHandle_t m_hFileHandle;
+	uint64_t m_nWsid;
 };
 
 class FileHandle

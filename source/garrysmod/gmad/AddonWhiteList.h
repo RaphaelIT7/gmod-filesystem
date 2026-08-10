@@ -128,6 +128,9 @@ namespace Addon
 			return bValid;
 		}
 
+		// RaphaelIT7:
+		// This one only exists on GMod builds.
+		std::string FilenameErrors( const std::string &strFileName, uint64_t nFileSize );
 	}
 }
 

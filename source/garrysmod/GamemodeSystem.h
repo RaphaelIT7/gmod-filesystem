@@ -19,6 +19,7 @@ public:
 	void SetActive( const std::string &gamemode ) override;
 	const std::list<IGamemodeSystem::Information> &GetList( ) const override;
 	bool IsServerBlacklisted( char const* address, char const* hostname, char const* description, char const* gm, char const* map ) override;
+	void OnServerDownloadsMounted() override;
 
 public:
 	System();

@@ -5611,6 +5611,7 @@ IGModLanguage *CBaseFileSystem::Language()
 
 void CBaseFileSystem::DoFilesystemRefresh()
 {
+	Msg( "CBaseFileSystem::DoFilesystemRefresh\n" );
 	++m_iRefreshCounter;
 }
 
