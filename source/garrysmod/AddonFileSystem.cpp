@@ -419,12 +419,12 @@ void Addon::FileSystem::AddUGCFile(SteamUGCDetails_t details, Addon::AddonType t
 
 void Addon::FileSystem::OnAddonSubscribed( const SteamUGCDetails_t& )
 {
-	Msg( "Addon::FileSystem::AddAddonFromSteamDetails\n" );
+	Msg( "Addon::FileSystem::OnAddonSubscribed\n" );
 }
 
 void Addon::FileSystem::AddUnloadedSubscription( uint64_t wsid )
 {
-	Msg( "Addon::FileSystem::AddAddonFromSteamDetails\n" );
+	Msg( "Addon::FileSystem::AddUnloadedSubscription\n" );
 }
 
 void Addon::FileSystem::EnableLoadingUnloadedAddons()
