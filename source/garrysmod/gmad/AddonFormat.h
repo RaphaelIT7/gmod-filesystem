@@ -100,6 +100,6 @@ namespace Addon
 	// This is the position in the file containing a 64 bit unsigned int that represents the file's age
 	// It's basically the time it was uploaded to Steam - and is set on download/extraction from steam.
 	//
-	static uint32_t			TimestampOffset			= sizeof( Addon::Header ) + sizeof( uint64_t );
+	static inline constexpr unsigned int TimestampOffset = sizeof( Addon::Header ) + sizeof( uint64_t );
 }
 #endif

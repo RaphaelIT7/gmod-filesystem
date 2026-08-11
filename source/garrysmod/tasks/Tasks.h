@@ -32,19 +32,31 @@ private:
 class DownloadAddons : public Addon::Job::Base
 {
 public:
+	DownloadAddons( bool bMountAfter );
 	~DownloadAddons() override = default;
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
+
+private:
+	bool m_bMountAfter;
 };
 
 class DownloadFile : public Addon::Job::Base
 {
 public:
+	DownloadFile( const IAddonSystem::Information &info );
 	~DownloadFile() override = default;
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
+
+private:
+	void NotifyFailed(const char* reason);
+
+	IAddonSystem::Information m_info;
+	STEAM_CALLBACK( DownloadFile, OnItemDownloaded, DownloadItemResult_t, m_downloadCallback );
+	bool m_bIsFinished = false;
 };
 
 class GetSubscriptions : public Addon::Job::Base
@@ -54,6 +66,15 @@ public:
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
+
+private:
+	void CheckForWastedSpace();
+	void OnQueryCompleted( SteamUGCQueryCompleted_t *pResult, bool bIOFailure );
+	CCallResult<GetSubscriptions, SteamUGCQueryCompleted_t> m_Query;
+
+	std::vector<SteamUGCDetails_t> m_Items;
+	bool m_bReady = false;
+	bool m_bFinished = false;
 };
 
 class MountAvailable : public Addon::Job::Base
@@ -63,6 +84,10 @@ public:
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
+
+private:
+	int m_nCycle = 0;
+	bool m_bFinished;
 };
 
 class NotifyStart : public Addon::Job::Base

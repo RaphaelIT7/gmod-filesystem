@@ -83,7 +83,7 @@ public: // FileSystem
 	void OnRemoteStoragePublishedFileUnsubscribed(RemoteStoragePublishedFileUnsubscribed_t* info);
 	Addon::AddonType GetAddonType(SteamUGCDetails_t details);
 	void AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type);
-	Folder* GetFolder( const std::string &strPath, bool bCreate );
+	Folder* GetFolder( const std::string &strPath, bool bCreate = false );
 	void NormalizePath( std::string &strFileName );
 	FileInfo *GetFile( std::string strFileName );
 	FileHandle *GetFileEntry( std::string strFileName );
@@ -101,6 +101,7 @@ private:
 	unordered_set<uint64_t> m_AddonNoMount;
 	IAddonDownloadNotification* m_pDownloadNotify = nullptr;
 	std::deque<Addon::Job::Base*> m_Jobs;
+	Addon::Job::Base *m_pCurrentJob = nullptr;
 	CCallback<Addon::FileSystem, RemoteStoragePublishedFileSubscribed_t> m_CallbackSubscribed;
 	CCallback<Addon::FileSystem, RemoteStoragePublishedFileUnsubscribed_t> m_CallbackUnsubscribed;
 };

@@ -45,6 +45,8 @@ public:
 		uint64_t size;
 		uint64_t hcontent_preview;
 		uint32_t timeadded;
+		bool canUpdate;
+		bool downloaded;
 	};
 
 	struct UGCInfo

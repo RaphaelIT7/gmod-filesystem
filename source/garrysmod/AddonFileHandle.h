@@ -9,7 +9,7 @@ namespace Addon
 struct FileInfo
 {
 	std::string m_strFileName;
-	std::string m_strFullFileName;
+	std::string m_strFolderName;
 	int64_t m_nSize;
 	int64_t m_nOffset;
 	FileHandle_t m_hFileHandle;

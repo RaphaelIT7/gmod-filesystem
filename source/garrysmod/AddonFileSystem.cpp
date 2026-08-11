@@ -20,7 +20,6 @@ void Addon::FileSystem::Refresh()
 
 	UpdateModPath();
 	Load();
-	MarkChanged();
 }
 
 Addon::Folder* Addon::FileSystem::GetFolder( const std::string &strPath, bool bCreate )
@@ -114,22 +113,22 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 
 	m_MountedAddons.push_back( std::move( addon ) );
 
-	for ( int i = 0; i < reader.GetNumFiles(); ++i )
+	for ( uint32_t i=0; i<reader.GetNumFiles(); ++i )
 	{
 		Addon::FileEntry& fileEntry = reader.GetFile( i );
 
-		std::string strFixedFile = fileEntry.strName;
-		Bootil::String::File::FixSlashes( strFixedFile, "/", "\\" );
-		Bootil::String::File::StripFilename( strFixedFile );
+		std::string strFixedFolder = fileEntry.strName;
+		Bootil::String::File::FixSlashes( strFixedFolder );
+		Bootil::String::File::StripFilename( strFixedFolder );
 
-		Folder* pFolder = GetFolder( strFixedFile, true );
+		Folder* pFolder = GetFolder( strFixedFolder, true );
 
 		std::string strFileName = fileEntry.strName;
 		Bootil::String::File::ExtractFilename( strFileName );
 
 		FileInfo info;
 		info.m_strFileName = strFileName;
-		info.m_strFullFileName = strFixedFile;
+		info.m_strFolderName = strFixedFolder;
 		info.m_nSize = fileEntry.iSize;
 		info.m_nOffset = fileEntry.iOffset;
 		info.m_hFileHandle = hFileHandle;
@@ -248,7 +247,7 @@ void Addon::FileSystem::ScanForSubscriptions( const char *unknown1, bool unknown
 		AddJob( new Addon::Task::MountAvailable() );
 
 		if ( !IsOfflineMode() )
-			AddJob( new Addon::Task::DownloadAddons() );
+			AddJob( new Addon::Task::DownloadAddons( true ) );
 
 		Think();
 	}
@@ -313,7 +312,6 @@ void Addon::FileSystem::NormalizePath( std::string& strFileName )
 // We are missing ALL the fs_tellmeyoursecrets prints... we don't even have the convar yet
 Addon::FileInfo *Addon::FileSystem::GetFile( std::string strFileName )
 {
-	// Msg( "Addon::FileSystem::GetFile(%s)\n", strFileName.c_str() );
 	std::string strNormalizedPath = strFileName;
 	NormalizePath( strNormalizedPath );
 
@@ -324,6 +322,7 @@ Addon::FileInfo *Addon::FileSystem::GetFile( std::string strFileName )
 	if ( !folder || !folder->size() )
 		return nullptr;
 
+	Msg( "Addon::FileSystem::GetFile(%s)\n", strFileName.c_str() );
 	std::string fileName = strNormalizedPath;
 	Bootil::String::File::ExtractFilename( fileName );
 
@@ -355,10 +354,31 @@ void Addon::FileSystem::Think()
 {
 	//Msg( "CAddonFileSystem::Think\n" );
 	get->RunSteamCallbacks();
+	if ( !m_pCurrentJob && !m_Jobs.empty() )
+	{
+		m_pCurrentJob = m_Jobs.front();
+		m_pCurrentJob->Start();
+	}
 
-	if (m_bChanged)
+	if ( m_pCurrentJob )
+	{
+		m_pCurrentJob->Cycle();
+
+		if ( m_pCurrentJob->Finished() )
+		{
+			delete m_pCurrentJob;
+			m_Jobs.pop_front();
+			m_pCurrentJob = nullptr;
+		}
+
+		return;
+	}
+
+	if ( m_bChanged )
 	{
 		m_bChanged = false;
+
+		AddJob( new Task::DownloadAddons( true ) );
 
 		if (m_pDownloadNotify)
 			m_pDownloadNotify->NotifySubscriptionChanges();
@@ -389,16 +409,38 @@ bool Addon::FileSystem::IsSubscribed( uint64_t wsid )
 	return false;
 }
 
-const IAddonSystem::Information* Addon::FileSystem::FindFileOwner( const std::string& )
+const IAddonSystem::Information* Addon::FileSystem::FindFileOwner( const std::string &strFileName )
 {
 	Msg( "Addon::FileSystem::FindFileOwner\n" );
+	std::string strNormalizedFileName = strFileName;
+	NormalizePath( strNormalizedFileName );
+
+	std::string strFolder = strNormalizedFileName;
+	Bootil::String::File::StripFilename( strFolder );
+	Folder *pFolder = GetFolder( strFolder, false );
+	if ( !pFolder || pFolder->empty() )
+		return nullptr;
+
+	for ( auto &entry : *pFolder )
+	{
+		if ( strNormalizedFileName == ( entry.second.m_strFolderName + entry.second.m_strFileName ) )
+		{
+			for ( auto &addon : m_Addons )
+			{
+				if ( addon.wsid == entry.second.m_nWsid )
+					return &addon;
+			}
+		}
+	}
+
 	return nullptr;
 }
 
+// RaphaelIT7: Note for me dumb dumb. If we give it something, m_Addons makes a copy!
 void Addon::FileSystem::AddAddon( const IAddonSystem::Information &info )
 {
 	Msg( "Addon::FileSystem::AddAddon\n" );
-	m_Addons.push_back(info);
+	m_Addons.push_back( info );
 }
 
 void Addon::FileSystem::ClearUnusedGMAs()
@@ -545,12 +587,11 @@ void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& detai
 			return;
 
 	Addon::AddonType type = GetAddonType(details);
-
+	IAddonSystem::Information info = {};
 	switch (type)
 	{
 	case Addon::AddonType::Addon:
 	{
-		IAddonSystem::Information info = {};
 		info.title = details.m_rgchTitle;
 		info.tags = details.m_rgchTags;
 		info.wsid = details.m_nPublishedFileId;
@@ -560,7 +601,8 @@ void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& detai
 		info.hcontent_file = details.m_hFile;
 		info.hcontent_preview = details.m_hPreviewFile;
 		info.timeadded = details.m_rtimeAddedToUserList;
-		AddAddon(info);
+		info.canUpdate = false;
+		info.downloaded = true;
 		break;
 	}
 
@@ -568,14 +610,62 @@ void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& detai
 	case Addon::AddonType::Save:
 	case Addon::AddonType::Demo:
 	case Addon::AddonType::ServerContent:
-		AddUGCFile(details, type);
-		break;
+		AddUGCFile( details, type );
+		return;
 
 	default:
 		// Unknown tag: warn / ignore
-		Warning("Addon has unknown type, ignoring (%llu)\n", details.m_nPublishedFileId);
+		Warning( "Addon has unknown type, ignoring (%llu)\n", details.m_nPublishedFileId );
 		break;
 	}
+
+	std::string strRefuse = IsAddonValidPreInstall( details );
+	if ( !strRefuse.empty() )
+	{
+		Warning( "Error! Refusing to load addon '%s' (%llu)! %s!\n", info.title.c_str(), info.wsid, strRefuse.c_str() );
+		AddAddon( info ); // We still wanna show them?
+		return;
+	}
+
+	if ( SteamUGC()->GetItemState( details.m_nPublishedFileId ) & k_EItemStateInstalled )
+	{
+		info.downloaded = true;
+
+		char szFolder[260];
+		uint64 size;
+		uint32 timestamp;
+		SteamUGC()->GetItemInstallInfo( details.m_nPublishedFileId, &size, szFolder, sizeof( szFolder ), &timestamp );
+		if ( details.m_rtimeUpdated != timestamp )
+			info.canUpdate = true;
+	}
+
+	std::string strAddonPath = Bootil::String::Format::Print( "cache/workshop/%llu.gma", info.wsid );
+	FileHandle_t hFileHandle = g_pFullFileSystem->Open( strAddonPath.c_str(), "rb", "MOD" );
+
+	if ( !hFileHandle )
+		hFileHandle = g_pFullFileSystem->Open( strAddonPath.c_str(), "rb", nullptr );
+
+	if ( !hFileHandle )
+	{
+		// We still add it as the menusystem can show failed to download
+		AddAddon(info);
+		return;
+	}
+
+	info.downloaded = true;
+
+	uint32 nAddonTimestamp = 0;
+	g_pFullFileSystem->Seek( hFileHandle, Addon::TimestampOffset, FILESYSTEM_SEEK_HEAD );
+	g_pFullFileSystem->Read( &nAddonTimestamp, sizeof(nAddonTimestamp), hFileHandle );
+	g_pFullFileSystem->Close( hFileHandle );
+
+	if ( details.m_rtimeUpdated != nAddonTimestamp )
+	{
+		info.canUpdate = true;
+		Msg( "Legacy addon update available! [%s] (US: %u != THEM: %u)\n[%s]\n", details.m_rgchTitle, nAddonTimestamp, details.m_rtimeUpdated, strAddonPath.c_str() );
+	}
+
+	AddAddon( info );
 }
 
 void Addon::FileSystem::AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type)
