@@ -52,6 +52,9 @@ IGet* get = nullptr;
 ConVar fs_report_sync_opens( "fs_report_sync_opens", "0", 0, "0:Off, 1:Blocking only, 2:All" );
 ConVar fs_warning_mode( "fs_warning_mode", "0", 0, "0:Off, 1:Warn main thread, 2:Warn other threads"  );
 
+// GMod
+ConVar fs_tellmeyoursecrets( "fs_tellmeyoursecrets", "0", 0, "0:Off, 1:On, 2:Extra" );
+
 constexpr inline int BSPOUTPUT{0};	// bsp output flag -- determines type of fs_log output to generate
 
 static void AddSeperatorAndFixPath( char *str );
@@ -5689,7 +5692,6 @@ static void MountFromScript( const char* scriptName )
 	}
 }
 
-static ConVar fs_tellmeyoursecrets( "fs_tellmeyoursecrets", "0", 0, "- 0:Off, 1:On, 2:Extra" );
 void CBaseFileSystem::MountDirectoryAndVPKs( const char* pszPath )
 {
 	if ( !Bootil::File::IsFolder( pszPath ) )

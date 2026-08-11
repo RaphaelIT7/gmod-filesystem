@@ -18,5 +18,6 @@ public: // CLanguage
 	std::wstring ParseString( const std::wstring &strInput );
 
 private:
+	char m_szLastLangCode[32]{};
 	unordered_map<std::string, std::wstring, StringHash, StringEq> m_Strings;
 };

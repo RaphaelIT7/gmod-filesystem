@@ -6,7 +6,7 @@
 #include "garrysmod/AddonReader.h"
 #include "tier1/keyvalues.h"
 #include "sdk_backports.h"
-#include "filesystem.h"
+#include "basefilesystem.h"
 #include <charconv>
 
 void Addon::FileSystem::Clear()
@@ -283,13 +283,13 @@ void Addon::FileSystem::UpdateModPath()
 	m_strModPath = get->GameDir();
 	m_strModPath.append( "\\workshop\\" );
 
-	if ( false ) // fs_tellmeyoursecrets.GetBool()
+	if ( fs_tellmeyoursecrets.GetBool() )
 		Msg( "Addon[UpdateModPath]: ModPath [%s]\n", m_strModPath.c_str() );
 
 	Bootil::String::File::FixSlashes( m_strModPath );
 	Bootil::String::Lower( m_strModPath );
 
-	if ( false ) // fs_tellmeyoursecrets.GetBool()
+	if ( fs_tellmeyoursecrets.GetBool() )
 		Msg( "Addon[UpdateModPath]: Cleaned [%s]\n", m_strModPath.c_str() );
 }
 
@@ -645,16 +645,16 @@ void Addon::FileSystem::FindInAddon( const std::string &pPath, const std::string
 	}
 }
 
-void Addon::FileSystem::FindFirst( const std::string& pPath, std::list<Addon::SearchFile>& results, FileHandle_t hFileHandle )
+void Addon::FileSystem::FindFirst( const std::string &pPath, std::list<Addon::SearchFile> &results, FileHandle_t hFileHandle )
 {
 	std::string path = pPath;
 	NormalizePath( path );
-	if ( false /* fs_tellmeyoursecrets.GetBool() */ )
+	if ( fs_tellmeyoursecrets.GetBool()  )
 		Msg( "Addon[FindFirst]: NormalizePath [%s]\n", path.c_str() );
 
 	std::string strDir = path;
 	Bootil::String::File::StripFilename( strDir );
-	if ( false /* fs_tellmeyoursecrets.GetBool() */ )
+	if ( fs_tellmeyoursecrets.GetBool() )
 		Msg( "Addon[FindFirst]: strDir [%s]\n", strDir.c_str() );
 
 	Folder* folder = GetFolder( path, false );
@@ -667,11 +667,10 @@ void Addon::FileSystem::FindFirst( const std::string& pPath, std::list<Addon::Se
 			continue;
 
 		std::string full = strDir + name;
-
 		if ( !Bootil::String::Test::Wildcard( full, full ) )
 			continue;
 
-		if ( false /* fs_tellmeyoursecrets.GetBool() */ )
+		if ( fs_tellmeyoursecrets.GetBool() )
 			Msg( "Addon[FindFirst]: Adding File [%s]\n", full.c_str() );
 
 		SearchFile sf;

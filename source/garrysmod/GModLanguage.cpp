@@ -63,9 +63,10 @@ void CLanguage::ChangeLanguage( const char* pszLangCode, bool bForceReload )
 	if ( !pszLangCode )
 		return;
 
-	if ( !bForceReload && gmod_language.GetString() == pszLangCode )
+	if ( !bForceReload && V_strncmp( pszLangCode, m_szLastLangCode, sizeof( m_szLastLangCode ) ) == 0 )
 		return;
 
+	strncpy( m_szLastLangCode, pszLangCode, sizeof( m_szLastLangCode ) );
 	if ( gmod_language.GetString()[0] == '\0' )
 		gmod_language.SetValue( pszLangCode );
 

@@ -58,6 +58,10 @@ void Gamemode::System::Clear()
 	m_Gamemodes.clear();
 	g_pFullFileSystem->RemoveSearchPathsByGroup( PRIORITY_GROUP_HEAD( GN_GMCONTENT ) );
 
+	// RaphaelIT7: Funny issue- if we unregister with -1 for whatever reason it nukes all our ConVars
+	if ( m_ConVarIdentifier == -1 )
+		return;
+
 	int* DLLIdentifier = ConVar_GetDLLIdentifier();
 	int CurrentID = *DLLIdentifier;
 	// We must override it here since the vtable func GetDLLIdentifier() returns s_nDLLIdentifier

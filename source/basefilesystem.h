@@ -84,6 +84,9 @@
 
 #define MAX_FILEPATH 512 
 
+// GMod
+extern ConVar fs_tellmeyoursecrets;
+
 extern CUtlSymbolTableMT g_PathIDTable;
 
 enum FileMode_t
