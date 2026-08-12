@@ -277,6 +277,11 @@ void GameDepot::System::Setup()
 }
 
 #ifndef DEDICATED
+const char* GameDepot::DoMountDir( IGameDepotSystem::Information& info, const std::string& unk2 ) 
+{
+	return NULL; // TODO
+}
+
 std::string GameDepot::GetAppInstallDir_FixedCase( int nAppID )
 {
 	static std::string empty = ""; // Just in case to avoid issues.

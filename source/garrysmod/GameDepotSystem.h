@@ -7,6 +7,7 @@ namespace GameDepot
 	extern bool bInitialized;
 #ifndef DEDICATED
 	std::string GetAppInstallDir_FixedCase( int nAppID );
+	const char *DoMountDir( IGameDepotSystem::Information &info, const std::string &unk2 );
 #endif
 
 class System : public IGameDepotSystem
