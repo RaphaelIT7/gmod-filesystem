@@ -17,9 +17,10 @@ public:
 		bool owned;
 		bool installed;
 		// RaphaelIT7:
-		// I am unsure of these below but we leave them as the struct size fits good enouth for GMod to accept.
+		// I am unsure of these two below but we leave them as the struct size fits good enouth for GMod to accept.
 		bool retail;
 		bool bundled;
+		std::list<std::string> mountSubDirs;
 	};
 
 	virtual void Refresh( ) = 0;

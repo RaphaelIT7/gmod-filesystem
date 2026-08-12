@@ -6,13 +6,15 @@
 #include "filesystem.h"
 #include <sdk_backports.h>
 #include "public/IGet.h"
+#include <Bootil/Bootil.h>
+#include <Bootil/Types/String.h>
 #include "steam/isteamapps.h"
 
 static const std::vector<IGameDepotSystem::Information>& MountableGames()
 {
 	static const std::vector<IGameDepotSystem::Information> mountableGames =
 	{
-		{ 220,     "Half-Life 2 & Episodes",            "hl2",               false, false, false, false, true,  true  },
+		{ 220,     "Half-Life 2 & Episodes",            "hl2",               false, false, false, false, true,  true, { "hl2", "episodic", "ep2", "lostcoast" }},
 		{ 240,     "Counter-Strike: Source",            "cstrike",           false, false, false, false, true,  true  },
 		{ 440,     "Team Fortress 2",                   "tf",                false, false, false, false, true,  false },
 		{ 300,     "Day of Defeat: Source",             "dod",               false, false, false, false, true,  false },
@@ -123,21 +125,17 @@ void GameDepot::System::FindGame( std::string &param_1 )
 	Msg( "GameDepot::System::FindGame()\n" );
 }
 
-bool GameDepot::System::MountAsSteampipe( Information &game, bool param_2 )
+bool GameDepot::System::MountAsSteampipe( Information& info, bool bHead )
 {
-	Msg( "GameDepot::System::MountAsSteampipe()\n" );
-#ifdef DEDICATED
-	return true;
-#else
+    std::string installDir = GetAppInstallDir_FixedCase( info.appid );
+    if ( installDir.empty() )
+        return false;
 
-	std::string strGamePath = GetAppInstallDir_FixedCase( game.appid );
-	if ( strGamePath.empty() )
-		return false;
+    for ( const std::string& sub : info.mountSubDirs )
+        DoMountDir( info, installDir + "\\" + sub, bHead );
 
-	return false; // TODO
-	// ^^ I think this is the process of mounting VPK's
-	// RaphaelIT7: On Linux DS this does nothing but you can find the code in filesystem_stdio.dylib (macos build)
-#endif
+    DoMountDir( info, installDir + "\\", bHead );
+    return true;
 }
 
 void GameDepot::System::Mount( Information &mountGameInfo, bool mount )
@@ -277,9 +275,53 @@ void GameDepot::System::Setup()
 }
 
 #ifndef DEDICATED
-const char* GameDepot::DoMountDir( IGameDepotSystem::Information& info, const std::string& unk2 ) 
+const char* GameDepot::DoMountDir( IGameDepotSystem::Information& info, const std::string& dir, bool bToHead )
 {
-	return NULL; // TODO
+	const unsigned int addType = bToHead ? PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) : PRIORITY_GROUP_TAIL( GN_GAMECONTENT );
+	std::string findPattern = dir + "/*.vpk";
+
+	// TODO: developer convar test I think
+	Msg( "MountableGame looking in '%s'...\n", findPattern.c_str() );
+
+	int findHandle = 0;
+	const char* pFileName = g_pFullFileSystem->FindFirst( findPattern.c_str(), &findHandle );
+
+	while (pFileName)
+	{
+		if (pFileName[0] == '.')
+		{
+			pFileName = g_pFullFileSystem->FindNext(findHandle);
+			continue;
+		}
+
+		if (!Bootil::String::Test::EndsWith( std::string( pFileName ), "_000.vpk" ) )
+		{
+			pFileName = g_pFullFileSystem->FindNext( findHandle );
+			continue;
+		}
+
+		std::string vpkPath = dir + "/" + pFileName;
+		Bootil::String::Util::GetFindAndReplace( vpkPath, "_000.vpk", "" );
+
+		// TODO: developer convar test I think
+		Msg( "MountableGame adding '%s'\n", vpkPath.c_str() );
+
+		g_pFullFileSystem->AddVPKFileFromPath( vpkPath.c_str(), "GAME", addType );
+		g_pFullFileSystem->AddVPKFileFromPath( vpkPath.c_str(), info.folder.c_str(), addType );
+
+		pFileName = g_pFullFileSystem->FindNext( findHandle );
+	}
+
+	g_pFullFileSystem->FindClose(findHandle);
+
+	// TODO: developer convar test I think
+	Msg("MountableGame adding path '%s'\n", dir.c_str());
+
+	g_pFullFileSystem->AddSearchPath( dir.c_str(), "GAME", addType );
+	g_pFullFileSystem->AddSearchPath( dir.c_str(), info.folder.c_str(), addType );
+	g_pFullFileSystem->MarkPathIDByRequestOnly( info.folder.c_str(), true );
+
+	return NULL;
 }
 
 std::string GameDepot::GetAppInstallDir_FixedCase( int nAppID )
