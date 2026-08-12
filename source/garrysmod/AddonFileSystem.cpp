@@ -768,3 +768,19 @@ void Addon::FileSystem::FindFirst( const std::string &pPath, std::list<Addon::Se
 		results.push_back( std::move( sf ) );
 	}
 }
+
+bool Addon::FileSystem::IsDirectory( std::string strFolderName )
+{
+	if ( fs_tellmeyoursecrets.GetBool() )
+		Msg( "Addon[IsDirectory]: [%s]\n", strFolderName.c_str() );
+
+	NormalizePath( strFolderName );
+	if ( fs_tellmeyoursecrets.GetBool() )
+		Msg( "Addon[IsDirectory]: Normalized [%s]\n", strFolderName.c_str() );
+	
+	Folder *pFolder = GetFolder( strFolderName );
+	if ( !pFolder || pFolder->empty() )
+		return false;
+
+	return true;
+}

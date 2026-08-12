@@ -3704,6 +3704,10 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 			V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
 			V_FixSlashes( pTmpFileName );
 
+			// GMod
+			if ( m_AddonFileSystem.IsDirectory( pTmpFileName ) )
+				return true;
+
 			if ( FS_stat( pTmpFileName, &buf ) != -1 )
 			{
 				if ( buf.st_mode & _S_IFDIR )

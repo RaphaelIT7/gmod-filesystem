@@ -85,10 +85,14 @@ public: // FileSystem
 	void AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type);
 	Folder* GetFolder( const std::string &strPath, bool bCreate = false );
 	void NormalizePath( std::string &strFileName );
+
 	FileInfo *GetFile( std::string strFileName );
 	FileHandle *GetFileEntry( std::string strFileName );
+
 	void FindInAddon( const std::string &pPath, const std::string &pSearchPath, std::list<Addon::SearchFile> &results );
 	void FindFirst( const std::string &pPath, std::list<Addon::SearchFile> &results, FileHandle_t hFileHandle );
+
+	bool IsDirectory( std::string strFolderName );
 
 private:
 	bool m_bChanged = false;
