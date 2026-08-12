@@ -57,7 +57,7 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 			const uint64_t nContentWSID = Bootil::String::To::UInt64( strWSID );
 			if ( nContentWSID != 0 )
 			{
-				strAddonPath.swap( GetAddonFilepath( nContentWSID, true ) );
+				strAddonPath = GetAddonFilepath( nContentWSID, true );
 				wsid = nContentWSID;
 			}
 		}

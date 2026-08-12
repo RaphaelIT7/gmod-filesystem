@@ -8,7 +8,7 @@ std::string Addon::WhiteList::FilenameErrors( const std::string &strFileName, ui
             return "Filename contains invalid character: Code point " + std::to_string( c );
 
         static constexpr const char *badChars = "\"*:<>?|";
-        if ( std::strchr( badChars, c ) )
+        if ( strchr( badChars, c ) )
             return "Filename contains invalid character '" + std::string( 1, c ) + "': Code point " + std::to_string( c );
     }
 
