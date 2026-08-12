@@ -25,6 +25,9 @@ namespace Bootil
 				bool StartInThread();
 				void StartInThreadAndDestroy();
 
+				// GMod
+				bool StartInThreadAndDetatch();
+
 				void Lock();
 				void Unlock();
 				void TryLock();

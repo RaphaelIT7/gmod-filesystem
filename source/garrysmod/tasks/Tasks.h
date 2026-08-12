@@ -5,6 +5,19 @@
 #include "filesystem.h"
 #include "steam_api.h"
 
+class ThreadedUGCAccess : public Bootil::Threads::Thread
+{
+public:
+	~ThreadedUGCAccess() override = default;
+	void Run() override;
+
+public:
+    uint64 m_ItemID;
+    uint32 m_timestamp;
+    Bootil::AutoBuffer m_Buffer;
+    int m_bSuccess;
+};
+
 namespace Addon::Task
 {
 
@@ -50,13 +63,17 @@ public:
 	void Start() override;
 	void Cycle() override;
 	bool Finished() override;
+	virtual void NotifyFailed( const char *pszReason );
 
 private:
-	void NotifyFailed(const char* reason);
-
-	IAddonSystem::Information m_info;
+	IAddonSystem::Information m_Info;
 	STEAM_CALLBACK( DownloadFile, OnItemDownloaded, DownloadItemResult_t, m_downloadCallback );
 	bool m_bIsFinished = false;
+	ThreadedUGCAccess* m_pThread = nullptr;
+	CFastTimer m_WarningTimer;
+	int m_iFailedCounter = 0;
+	uint64_t m_nBytesTransferred = 0;
+	uint64_t m_nPrevDownloadedBytes = 0;
 };
 
 class GetSubscriptions : public Addon::Job::Base

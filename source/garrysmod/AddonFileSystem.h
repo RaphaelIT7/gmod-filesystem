@@ -25,7 +25,7 @@ struct MountedAddon
 	FileHandle_t m_hFileHandle;
 	uint64_t m_nWsid;
 	uint64_t m_nWsid2;
-	bool m_bSomeFlag;
+	bool m_bDeleteOnUnmount;
 };
 
 struct SearchFile
@@ -85,6 +85,8 @@ public: // FileSystem
 	void AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type);
 	Folder* GetFolder( const std::string &strPath, bool bCreate = false );
 	void NormalizePath( std::string &strFileName );
+	void SendUGCListUpdate();
+	bool UnmountFile( std::string strFileName, const char *pszReason );
 
 	FileInfo *GetFile( std::string strFileName );
 	FileHandle *GetFileEntry( std::string strFileName );

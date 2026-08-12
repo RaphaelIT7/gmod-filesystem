@@ -12,6 +12,14 @@
 void Addon::FileSystem::Clear()
 {
 	Msg( "Addon::FileSystem::Clear\n" );
+	for ( auto &pAddon : m_MountedAddons )
+	{
+		if ( pAddon.m_hFileHandle != FILESYSTEM_INVALID_HANDLE )
+			g_pFullFileSystem->Close( pAddon.m_hFileHandle );
+	}
+
+	m_MountedAddons.clear();
+	m_Folders.clear();
 }
 
 void Addon::FileSystem::Refresh()
@@ -109,7 +117,7 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 	addon.m_hFileHandle = hFileHandle;
 	addon.m_nWsid = wsid;
 	addon.m_nWsid2 = wsid2;
-	addon.m_bSomeFlag = addonFlag;
+	addon.m_bDeleteOnUnmount = addonFlag;
 
 	m_MountedAddons.push_back( std::move( addon ) );
 
@@ -247,7 +255,11 @@ void Addon::FileSystem::ScanForSubscriptions( const char *unknown1, bool unknown
 		AddJob( new Addon::Task::MountAvailable() );
 
 		if ( !IsOfflineMode() )
+		{
 			AddJob( new Addon::Task::DownloadAddons( true ) );
+			// RaphaelIT7: There seems to be another call here though idk what that one is
+			SendUGCListUpdate();
+		}
 
 		Think();
 	}
@@ -267,7 +279,38 @@ void Addon::FileSystem::OnRemoteStoragePublishedFileSubscribed( RemoteStoragePub
 
 void Addon::FileSystem::OnRemoteStoragePublishedFileUnsubscribed( RemoteStoragePublishedFileUnsubscribed_t *info )
 {
+	if ( IsOfflineMode() )
+		return;
 
+	if ( info->m_nAppID != SteamUtils()->GetAppID() )
+		return;
+
+	for ( auto it = m_MountedAddons.begin(); it != m_MountedAddons.end(); ++it )
+	{
+		if ( it->m_nWsid != info->m_nPublishedFileId )
+			continue;
+
+		UnmountFile( it->m_strPath, "addon unsubscribed" );
+		if ( it->m_bDeleteOnUnmount )
+			g_pFullFileSystem->RemoveFile( it->m_strPath.c_str(), "MOD" );
+
+		EnableLoadingUnloadedAddons(); // ???
+		// Some other call here?
+		AddJob( new Addon::Task::MountAvailable() );
+		SendUGCListUpdate();
+		return;
+	}
+
+	for ( auto it = m_UgcAddons.begin(); it != m_UgcAddons.end(); ++it )
+	{
+		if ( it->wsid != info->m_nPublishedFileId )
+			continue;
+
+		m_UgcAddons.erase( it );
+		break;
+	}
+
+	SendUGCListUpdate();
 }
 
 
@@ -306,6 +349,27 @@ void Addon::FileSystem::NormalizePath( std::string& strFileName )
 
 	if ( strFileName.length() > m_strModPath.length() && Bootil::String::Test::StartsWith( strFileName, m_strModPath ) )
 		strFileName.assign( strFileName.c_str() + m_strModPath.length() );
+}
+
+void Addon::FileSystem::SendUGCListUpdate()
+{
+	if ( Notify() )
+		Notify()->NotifySubscriptionChanges();
+}
+
+bool Addon::FileSystem::UnmountFile( std::string strFileName, const char *pszReason )
+{
+	for ( auto it = m_MountedAddons.begin(); it != m_MountedAddons.end(); ++it )
+	{
+		if ( it->m_strPath != strFileName )
+			continue;
+
+		Warning( "Unmounting (%s) '%s'\n", pszReason, strFileName.c_str() );
+		// UnmountPackFile( it->m_hFileHandle, false );
+		return true;
+	}
+
+	return false;
 }
 
 // RaphaelIT7 (ToDo):
@@ -535,13 +599,13 @@ std::string Addon::FileSystem::IsAddonValidPreInstall( SteamUGCDetails_t details
 	return "";
 }
 
+// RaphaelIT7:
+// The GMod loading screen waits for this to return true
+// Else you will wait forever.
 bool Addon::FileSystem::AllJobsFinished()
 {
 	Msg( "Addon::FileSystem::AllJobsFinished\n" );
-	// RaphaelIT7:
-	// The GMod loading screen waits for this to return true
-	// Else you will wait forever.
-	return true;
+	return m_pCurrentJob == nullptr && m_Jobs.empty();
 }
 
 void Addon::FileSystem::Shutdown()

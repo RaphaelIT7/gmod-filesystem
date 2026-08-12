@@ -68,6 +68,19 @@ namespace Bootil
 			return true;
 		}
 
+		// GMod
+		bool Thread::StartInThreadAndDetatch()
+		{
+			m_bRunning = true;
+			m_bClosing = false;
+
+			m_pThread = new tthread::thread( RunInThread, this );
+			if ( m_pThread )
+				m_pThread->detach();
+
+			return true;
+		}
+
 		bool Thread::Running() { Threads::Guard m( &m_Mutex ); return m_bRunning; }
 		void Thread::Lock() { m_Mutex.Lock(); }
 		void Thread::Unlock() { m_Mutex.Unlock(); }
