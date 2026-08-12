@@ -1,6 +1,7 @@
 #pragma once
 
 #include "garrysmod/public/IGamemodeSystem.h"
+#include "unordered_stuff.h"
 #include <memory_resource>
 #include "tier1/convar.h"
 
@@ -47,9 +48,13 @@ private:
 		return pData;
 	}
 
+	unordered_set<ConCommandBase*> m_ConVars;
 	ConVar* AllocConVar()
 	{
-		return (ConVar*)m_ConVarArena.allocate( sizeof(ConVar) );
+		ConVar *pVar = (ConVar*)m_ConVarArena.allocate( sizeof(ConVar) );
+		m_ConVars.insert( pVar );
+
+		return pVar;
 	}
 
 	std::list<IGamemodeSystem::Information> m_Gamemodes;

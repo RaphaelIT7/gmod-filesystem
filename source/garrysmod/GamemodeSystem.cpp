@@ -62,24 +62,22 @@ void Gamemode::System::Clear()
 	if ( m_ConVarIdentifier == -1 )
 		return;
 
-	int* DLLIdentifier = ConVar_GetDLLIdentifier();
-	int CurrentID = *DLLIdentifier;
-	// We must override it here since the vtable func GetDLLIdentifier() returns s_nDLLIdentifier
-	*DLLIdentifier = m_ConVarIdentifier;
-
-	// RaphaelIT7: Our custom setup to not leak memory
+	// RaphaelIT7:
+	// Our custom setup to not leak memory- "plans"
+	// The issue is that UnregisterConCommands destroys the entire chain...
+	// We added ConVar::SetLocalDLLIdentifier so that we can easily unregister all of them at once like below
+	// Doing many one by one UnregisterConCommand calls would waste performance.
 	g_pCVar->UnregisterConCommands( m_ConVarIdentifier );
+
 	// RaphaelIT7 - Update:
 	// Learned the hard way why this probably isn't done.
 	// It will crash in vstdlib for whatever reason even though its not expected to keep any references anymore.
 	// ToDo:
 	// So doing the above code for s_nDLLIdentifier fixed the vstdlib crash
-	// BUT the local m_pNext chain for ConCommandBase's is probably invalid too
-	// So we must probably clean that up
+	// UnregisterConCommands will already fix up the m_pNext chain
 	// Right now were getting else a crash in the menusystem.dll and I'm just gonna guess that it's trying to iterate convars.
 	// m_ConVarArena.release();
-
-	*DLLIdentifier = CurrentID;
+	// m_ConVars.clear();
 }
 
 const IGamemodeSystem::Information& Gamemode::System::Active()
@@ -244,6 +242,7 @@ void Gamemode::System::AddGamemode( std::string strGamemode )
 			*DLLIdentifier = m_ConVarIdentifier; // So that the convar is registered as a m_ConVarIdentifier!
 
 			ConVar* pConVar = ::new ( AllocConVar() ) ConVar( AllocString( name ), AllocString( def ), flags, AllocString( help ));
+			pConVar->SetLocalDLLIdentifier( m_ConVarIdentifier );
 
 			*DLLIdentifier = CurrentID;
 		}

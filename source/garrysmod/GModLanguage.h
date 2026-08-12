@@ -15,7 +15,6 @@ public: // ILanguage
 public: // CLanguage
 	void TellLuaLanguageChanged( const char *pszLangCode );
 	bool ProcessFile( const std::string& filename, const char* pathID );
-	std::wstring ParseString( const std::wstring &strInput );
 
 private:
 	char m_szLastLangCode[32]{};

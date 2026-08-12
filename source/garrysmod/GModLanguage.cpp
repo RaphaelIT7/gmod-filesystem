@@ -222,74 +222,6 @@ bool CLanguage::GetString( const char *pszPhraseKey, wchar_t *pszPhraseOut, uint
 	return true;
 }
 
-// RaphaelIT7: This is an absolute mess, but so it looks in IDA
-bool CLanguage::ProcessFile( const std::string& strFileName, const char* pathID )
-{
-	CUtlBuffer buffer;
-	if ( !g_pFullFileSystem->ReadFile( strFileName.c_str(), pathID, buffer ) )
-	{
-		Warning( "Failed to read language file %s\n", strFileName.c_str() );
-		return false;
-	}
-
-	if ( !buffer.Base() )
-	{
-		Warning( "Failed to load language file %s\n", strFileName.c_str() );
-		return false;
-	}
-
-	std::string strContents(static_cast<const char*>( buffer.Base() ), buffer.TellPut() );
-	std::vector<std::string> lines;
-	Bootil::String::Util::Split( strContents, "\n", lines );
-
-	std::string strCurrentKey;
-	std::wstring strCurrentValue;
-	for ( size_t i = 0; i < lines.size(); i++ )
-	{
-		std::string line = lines[i];
-		if ( line.empty() || line[0] == '#' )
-			continue;
-
-		bool continuation = false;
-		if ( !line.empty() && line.back() == '\\' )
-		{
-			continuation = true;
-			line.pop_back();
-		}
-
-		size_t equal = line.find('=');
-		if ( equal != std::string::npos )
-		{
-			strCurrentKey = line.substr( 0, equal );
-			strCurrentValue = UTF8ToUTF16( line.substr( equal + 1 ) );
-		} else
-			continue;
-
-		while ( continuation && i + 1 < lines.size() )
-		{
-			std::string next = lines[++i];
-
-			if ( !next.empty() && next.back() == '\\' )
-			{
-				next.pop_back();
-				continuation = true;
-			} else
-				continuation = false;
-
-			strCurrentValue += UTF8ToUTF16(next);
-		}
-
-		ParseString( strCurrentValue );
-		auto it = m_Strings.find( strCurrentKey );
-		if ( it != m_Strings.end() )
-			it->second = strCurrentValue;
-		else
-			m_Strings.emplace( strCurrentKey, strCurrentValue );
-	}
-
-	return true;
-}
-
 static inline uint16_t ParseHex4( const std::wstring &str, size_t pos )
 {
 	uint16_t value = 0;
@@ -312,37 +244,102 @@ static inline uint16_t ParseHex4( const std::wstring &str, size_t pos )
 // RaphaelIT7:
 // This looks like shit but I pray it works
 // The goal is to mimic GMod's ParseString function
-std::wstring CLanguage::ParseString( const std::wstring &strInput )
+static std::wstring ParseString( const std::string &strInput )
 {
+	wchar_t unicode[4096];
+	size_t unicodeLen = Q_UTF8ToUTF32( strInput.c_str(), (uchar32*)unicode, sizeof(unicode) );
+
 	std::wstring strOutput;
-	strOutput.reserve( strInput.size() );
-	for ( size_t i=0; i<strInput.size(); ++i )
+	for ( size_t i=0; i<unicodeLen; ++i )
 	{
-		wchar_t c = strInput[i];
-		if ( c == L'\\' && i + 1 < strInput.size() )
+		if ( unicode[i] != U'\\' )
 		{
-			wchar_t next = strInput[i + 1];
-			if ( next == L'u' && i + 5 < strInput.size())
-			{
-				strOutput.push_back( ParseHex4( strInput, i + 2 ) );
-				i += 5;
-				continue;
-			}
-
-			if ( next == L'n' )
-			{
-				strOutput.push_back( L'\n' );
-				i++;
-				continue;
-			}
-
-			strOutput.push_back( next );
-			i++;
+			strOutput.push_back( unicode[i] );
+			++i;
 			continue;
 		}
 
-		strOutput.push_back( c );
+		if ( unicode[i + 1] == U'u' )
+		{
+			strOutput.push_back( ParseHex4( unicode, i + 2 ) );
+			i += 6;
+			continue;
+		}
+
+		if ( unicode[i + 1] == U'n' )
+		{
+			strOutput.push_back( L'\n' );
+			i += 2;
+			continue;
+		}
+
+		++i;
 	}
 
 	return strOutput;
+}
+
+// RaphaelIT7: This is an absolute mess, but so it looks in IDA
+bool CLanguage::ProcessFile( const std::string& strFileName, const char* pathID )
+{
+	CUtlBuffer buffer;
+	if ( !g_pFullFileSystem->ReadFile( strFileName.c_str(), pathID, buffer ) )
+	{
+		Warning( "Failed to read language file %s\n", strFileName.c_str() );
+		return false;
+	}
+
+	if ( !buffer.Base() )
+	{
+		Warning( "Failed to load language file %s\n", strFileName.c_str() );
+		return false;
+	}
+
+	std::string strContents(static_cast<const char*>( buffer.Base() ), buffer.TellPut() );
+	std::vector<std::string> lines;
+	Bootil::String::Util::Split( strContents, "\n", lines );
+
+	bool bContinue = false;
+	std::string strCurrentKey;
+	for ( size_t i = 0; i < lines.size(); ++i )
+	{
+		std::string line = lines[i];
+		if ( !line.empty() && line[0] == '#' )
+			continue;
+
+		if ( Bootil::String::Test::ContainsChar( line, '=' ) )
+		{
+			std::string key = line;
+			std::string value = line;
+
+			Bootil::String::Util::TrimAfter( key, "=", true );
+			Bootil::String::Util::TrimBefore( value, "=", false );
+
+			int slashCount = 0;
+			for ( int j=int( value.size() ) - 1; j >= 0 && value[j] == '\\'; --j )
+				++slashCount;
+
+			bContinue = ( slashCount & 1 ) != 0;
+			strCurrentKey = key;
+
+			m_Strings[ strCurrentKey ] = ParseString( value );
+			continue;
+		}
+
+		if ( !bContinue )
+			continue;
+
+		std::string continuation = line;
+		Bootil::String::Util::TrimLeft( continuation, "\t " );
+
+		int slashCount = 0;
+		for ( int j=int( continuation.size() ) - 1; j >= 0 && continuation[j] == '\\'; --j )
+			++slashCount;
+
+		bContinue = ( slashCount & 1 ) != 0;
+
+		m_Strings[ strCurrentKey ] = ParseString( continuation );
+	}
+
+	return true;
 }
