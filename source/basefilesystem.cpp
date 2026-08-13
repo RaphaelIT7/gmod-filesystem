@@ -124,6 +124,15 @@ static void NormalizeGamePath( char *pszPath )
     *dst = '\0';
 }
 
+// RaphaelIT7:
+// Using printf( "%s%s" ) is a real waste! So we replact it with this
+// This only now becomes a bit noticeable in performance results thanks to our cache making lookups fast already
+inline void ComposeSearchPath( char *pOut, size_t nOutSize, const char *pSearchPath, const char *pFileName )
+{
+	V_strncpy( pOut, pSearchPath, nOutSize );
+	V_strcat( pOut, pFileName, nOutSize );
+}
+
 static void LogFileOpen( const char *vpk, const char *pFilename, const char *pAbsPath )
 {
 	static const char *mode = nullptr;
@@ -890,7 +899,7 @@ bool CBaseFileSystem::AddPackFile( const char *pFileName, const char *pathID )
 bool CBaseFileSystem::AddPackFileFromPath( const char *pPath, const char *pakfile, bool bCheckForAppendedPack, const char *pathID )
 {
 	char fullpath[ MAX_PATH ];
-	V_sprintf_safe( fullpath, "%s%s", pPath, pakfile );
+	ComposeSearchPath( fullpath, sizeof( fullpath ), pPath, pakfile );
 	Q_FixSlashes( fullpath );
 
 	struct	_stat buf;
@@ -2133,13 +2142,15 @@ public:
 	
 	~CFileOpenInfo() = default;
 	
-	void SetAbsolutePath( const char *pFormat, ... )
+	void SetAbsolutePath( const char *pSearchPath, const char *pFileName )
 	{
-		va_list marker;
-		va_start( marker, pFormat ); //-V2018 //-V2019
-		V_vsprintf_safe( m_AbsolutePath, pFormat, marker );
-		va_end( marker );
+		ComposeSearchPath( m_AbsolutePath, sizeof( m_AbsolutePath ), pSearchPath, pFileName );
+		V_FixSlashes( m_AbsolutePath );
+	}
 
+	void SetAbsolutePath( const char *pszAbsolutePath )
+	{
+		V_strncpy( m_AbsolutePath, pszAbsolutePath, sizeof( m_AbsolutePath ) );
 		V_FixSlashes( m_AbsolutePath );
 	}
 	
@@ -2354,10 +2365,10 @@ FileHandle_t CBaseFileSystem::FindFileInSearchPath( CFileOpenInfo &openInfo )
 	V_strcpy_safe( szLowercaseFilename, openInfo.m_pFileName );
 	V_strlower( szLowercaseFilename );
 
-	openInfo.SetAbsolutePath( "%s%s", openInfo.m_pSearchPath->GetPathString(), szLowercaseFilename );
 	// RaphaelIT7: BUG! Source apparently allows materials\\..\\backgrounds why?
 	NormalizeGamePath( szLowercaseFilename );
 
+	openInfo.SetAbsolutePath( openInfo.m_pSearchPath->GetPathString(), szLowercaseFilename );
 
 	// now have an absolute name
 	HandleOpenRegularFile( openInfo, false );
@@ -2417,7 +2428,7 @@ FileHandle_t CBaseFileSystem::OpenForRead( const char *pFileNameT, const char *p
 	// If so, don't bother iterating search paths.
 	if ( V_IsAbsolutePath( pFileName ) )
 	{
-		openInfo.SetAbsolutePath( "%s", pFileName );
+		openInfo.SetAbsolutePath( pFileName );
 
 		// Check if it's of the form C:/a/b/c/blah.zip/materials/blah.vtf
 		// an absolute path can encode a zip pack file (i.e. caller wants to open the file from within the pack file)
@@ -2810,7 +2821,7 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 		}
 		else
 		{
-			V_sprintf_safe( pTmpFileName, "%s%s", path->GetPathString(), pFileName );
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), path->GetPathString(), pFileName );
 		}
 
 		V_FixSlashes( pTmpFileName );
@@ -3357,7 +3368,7 @@ long CBaseFileSystem::GetFileTime( const char *pFileName, const char *pPathID )
 				}
 				else
 				{
-					V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), tempFileName );
+					ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), tempFileName );
 				}
 
 				V_FixSlashes( tempFileName );
@@ -3400,7 +3411,7 @@ long CBaseFileSystem::GetPathTime( const char *pFileName, const char *pPathID )
 				}
 				else
 				{
-					V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), tempFileName );
+					ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), tempFileName );
 				}
 
 				V_FixSlashes( tempFileName );
@@ -3756,7 +3767,7 @@ bool CBaseFileSystem::IsFileWritable( char const *pFileName, char const *pPathID
 	for ( CSearchPath *pSearchPath = iter.GetFirst(); pSearchPath != nullptr; pSearchPath = iter.GetNext() )
 	{
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
 
 		if ( FS_stat( pTmpFileName, &buf ) != -1 )
@@ -3799,7 +3810,7 @@ bool CBaseFileSystem::SetFileWritable( char const *pFileName, bool writable, con
 	for ( CSearchPath *pSearchPath = iter.GetFirst(); pSearchPath != nullptr; pSearchPath = iter.GetNext() )
 	{
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
 
 		if ( FS_chmod( pTmpFileName, pmode ) == 0 )
@@ -3859,7 +3870,7 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 #endif // SUPPORT_PACKED_STORE
 		{
 			char pTmpFileName[ MAX_FILEPATH ];
-			V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 			V_FixSlashes( pTmpFileName );
 
 			// GMod
@@ -4082,7 +4093,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 
 			// Otherwise, raw FS find for relative path
 			char pTmpFileName[ MAX_FILEPATH ];
-			V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
 			V_FixSlashes( pTmpFileName );
 			pFindData->findHandle = FS_FindFirstFile( pTmpFileName, &pFindData->findData );
 			pFindData->m_CurrentStoreID = pSearchPath->m_storeId;
@@ -4226,7 +4237,7 @@ bool CBaseFileSystem::FindNextFileHelper( FindData_t *pFindData, int *pFoundStor
 #endif
 
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
 		V_FixSlashes( pTmpFileName );
 		pFindData->findHandle = FS_FindFirstFile( pTmpFileName, &pFindData->findData );
 		pFindData->m_CurrentStoreID = pSearchPath->m_storeId;
@@ -4524,7 +4535,7 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 #endif
 
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
 
 		// GMod
@@ -5082,7 +5093,7 @@ CSysModule *CBaseFileSystem::LoadModule( const char *pFileName, const char *pPat
 		if ( FilterByPathID( &sp, lookup ) )
 			continue;
 
-		V_sprintf_safe( tempPathID, "%s%s", sp.GetPathString(), pFileName ); // append the path to this dir.
+		ComposeSearchPath( tempPathID, sizeof( tempPathID ), sp.GetPathString(), pFileName ); // append the path to this dir.
 		CSysModule *pModule = Sys_LoadModule( tempPathID );
 		if ( pModule ) 
 		{
