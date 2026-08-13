@@ -1,6 +1,10 @@
 # gmod-filesystem
-A replacement for GMod's `filesystem_stdio`<br>
+A replacement for GMod's `filesystem_stdio` made in collab with [@marchc1](https://github.com/marchc1) :D<br>
 Based of how REngine's filesystem works the goal is to partially port over the same idea behind it and have GMod benefit from it.<br>
+
+`main` branch will try to be close to GMod<br>
+Any other branch can have any change and differ from GMod<br>
+We can make PRs to `main` and being them up to Rubat as a suggestion :)<br>
 
 ## Sources Used
 This repo uses the filesystem version from https://github.com/Source-Authors/Obsoletium as a base with changes from https://github.com/RaphaelIT7/obsolete-source-engine/tree/gmod brought over<br>
