@@ -3688,14 +3688,9 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 #ifdef SUPPORT_PACKED_STORE
 		if ( pSearchPath->GetPackedStore() )
 		{
-			CUtlStringList outDir, outFile;
-			pSearchPath->GetPackedStore()->GetFileAndDirLists( outDir, outFile, false );
-
-			for ( auto *dir : outDir )
-			{
-				if ( V_strieq( dir, pFileName ) )
-					return true;
-			}
+			// GMod
+			if ( pSearchPath->GetPackedStore()->DirectoryEntryExists( pFileName ) )
+				return true;
 		}
 		else
 #endif // SUPPORT_PACKED_STORE

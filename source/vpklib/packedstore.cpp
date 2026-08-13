@@ -1926,6 +1926,26 @@ void CPackedStore::BuildFindFirstCache()
 	}
 }
 
+// GMod
+bool CPackedStore::DirectoryEntryExists( const char *pszPath )
+{
+	// Build the FindFirst cache on first use.
+	if ( !m_directoryList.Count() )
+		BuildFindFirstCache();
+
+	char szPath[MAX_PATH];
+	V_strncpy( szPath, pszPath, sizeof( szPath ) );
+	V_FixSlashes( szPath, '/' );
+
+	FOR_EACH_VEC( m_directoryList, i )
+	{
+		if ( !V_stricmp( m_directoryList[i], szPath ) )
+			return true;
+	}
+
+	return false;
+}
+
 intp CPackedStore::GetFileAndDirLists( const char *pWildCard, CUtlStringList &outDirnames, CUtlStringList &outFilenames, bool bSortedOutput )
 {
 	// If this is the first time we've called FindFirst on this CPackedStore then let's build the caches

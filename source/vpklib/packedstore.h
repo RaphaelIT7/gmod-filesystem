@@ -296,6 +296,9 @@ public:
 	/// Remove the specified file from the directory.  Returns true if removed, false if not found
 	bool RemoveFileFromDirectory( const char *pszName );
 
+	// GMod
+	bool DirectoryEntryExists( const char *pszPath );
+
 	/// Add file, writing file data to the end
 	/// of the current chunk
 	ePackedStoreAddResultCode AddFile( char const *pFile, uint16 nMetaDataSize, const void *pFileData, uint32 nFullFileSize, bool bMultiChunk, uint32 const *pCrcToUse = NULL );
