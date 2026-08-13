@@ -216,14 +216,14 @@ void Addon::FileSystem::Save()
 	kv->SaveToFile( g_pFullFileSystem, "cfg/addonnomount.txt", "DEFAULT_WRITE_PATH" );
 }
 
-const std::list<IAddonSystem::Information>& Addon::FileSystem::GetList( ) const
+const std::list<IAddonSystem::Information>& Addon::FileSystem::GetList() const
 {
 	Msg( "CAddonFileSystem::GetList\n" );
 
 	return m_Addons;
 }
 
-const std::list<IAddonSystem::UGCInfo>& Addon::FileSystem::GetUGCList( ) const
+const std::list<IAddonSystem::UGCInfo>& Addon::FileSystem::GetUGCList() const
 {
 	Msg( "CAddonFileSystem::GetUGCList\n" );
 	return m_UgcAddons;
@@ -613,7 +613,7 @@ void Addon::FileSystem::Shutdown()
 	Msg( "Addon::FileSystem::Shutdown\n" );
 }
 
-void Addon::FileSystem::AddJob( Addon::Job::Base* job)
+void Addon::FileSystem::AddJob( Addon::Job::Base* job )
 {
 	Msg( "Addon::FileSystem::AddJob\n" );
 	job->Init(this);
@@ -644,7 +644,7 @@ void Addon::FileSystem::MountFloatingAddons()
 	g_pFullFileSystem->FindClose( hFindHandle );
 }
 
-void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& details)
+void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& details )
 {
 	for (const auto& info : m_Addons)
 		if (info.wsid == details.m_nPublishedFileId)
@@ -732,18 +732,19 @@ void Addon::FileSystem::AddAddonFromSteamDetails( const SteamUGCDetails_t& detai
 	AddAddon( info );
 }
 
-void Addon::FileSystem::AddUGCFile(SteamUGCDetails_t details, Addon::AddonType type)
+void Addon::FileSystem::AddUGCFile( SteamUGCDetails_t details, Addon::AddonType type )
 {
 	IAddonSystem::UGCInfo info = {};
 	info.title = details.m_rgchTitle;
-	info.file = GetAddonFilepath(details.m_nPublishedFileId, false);
+	info.file = GetAddonFilepath( details.m_nPublishedFileId, false );
 	info.wsid = details.m_nPublishedFileId;
 	info.creator = details.m_ulSteamIDOwner;
-	info.pubdate = details.m_rtimeUpdated;  
-	m_UgcAddons.push_back(info);
+	info.pubdate = details.m_rtimeUpdated;
+
+	m_UgcAddons.push_back( info );
 }
 
-void Addon::FileSystem::OnAddonSubscribed( const SteamUGCDetails_t& )
+void Addon::FileSystem::OnAddonSubscribed( const SteamUGCDetails_t &details )
 {
 	Msg( "Addon::FileSystem::OnAddonSubscribed\n" );
 }
@@ -812,7 +813,7 @@ void Addon::FileSystem::FindFirst( const std::string &pPath, std::list<Addon::Se
 		Msg( "Addon[FindFirst]: strDir [%s]\n", strDir.c_str() );
 
 	Folder* folder = GetFolder( path, false );
-	if ( !folder || folder->empty( ))
+	if ( !folder || folder->empty() )
 		return;
 
 	for ( auto& [name, info] : *folder )

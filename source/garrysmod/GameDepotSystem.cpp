@@ -120,13 +120,16 @@ GameDepot::System::System()
 	Msg( "GameDepot::System::System()\n" );
 }
 
-void GameDepot::System::FindGame( std::string &param_1 )
+void GameDepot::System::FindGame( std::string &strGameName )
 {
 	Msg( "GameDepot::System::FindGame()\n" );
 }
 
-bool GameDepot::System::MountAsSteampipe( Information& info, bool bHead )
+bool GameDepot::System::MountAsSteampipe( Information &info, bool bHead )
 {
+#ifdef DEDICATED
+	return true;
+#else
     std::string installDir = GetAppInstallDir_FixedCase( info.appid );
     if ( installDir.empty() )
         return false;
@@ -136,39 +139,40 @@ bool GameDepot::System::MountAsSteampipe( Information& info, bool bHead )
 
     DoMountDir( info, installDir + "\\", bHead );
     return true;
+#endif
 }
 
-void GameDepot::System::Mount( Information &mountGameInfo, bool mount )
+void GameDepot::System::Mount( Information &info, bool bMount )
 {
 	DevMsg( "Mounting game '%s' (%s, %i)...\n",
-		mountGameInfo.title.c_str(), mountGameInfo.folder.c_str(), mountGameInfo.appid );
+		info.title.c_str(), info.folder.c_str(), info.appid );
 
-	if ( MountAsSteampipe( mountGameInfo, mount ) )  
+	if ( MountAsSteampipe( info, bMount ) )  
 		return;
 
-	if ( mountGameInfo.folder == "hl2" )
+	if ( info.folder == "hl2" )
 		return;
 
-	if ( mount )
+	if ( bMount )
 	{
-		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_CURRENTGAME ) );
-		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), mountGameInfo.folder.c_str(), PRIORITY_GROUP_HEAD( GN_CURRENTGAME ) );
+		g_pFullFileSystem->AddSearchPath( info.folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_CURRENTGAME ) );
+		g_pFullFileSystem->AddSearchPath( info.folder.c_str(), info.folder.c_str(), PRIORITY_GROUP_HEAD( GN_CURRENTGAME ) );
 	}
 	else
 	{
-		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
-		g_pFullFileSystem->AddSearchPath( mountGameInfo.folder.c_str(), mountGameInfo.folder.c_str(), PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) );
+		g_pFullFileSystem->AddSearchPath( info.folder.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );
+		g_pFullFileSystem->AddSearchPath( info.folder.c_str(), info.folder.c_str(), PRIORITY_GROUP_HEAD( GN_GAMECONTENT ) );
 	}
 
-	g_pFullFileSystem->MarkPathIDByRequestOnly(mountGameInfo.folder.c_str(), true);
+	g_pFullFileSystem->MarkPathIDByRequestOnly( info.folder.c_str(), true );
 
-	if (mountGameInfo.enabled)
-		g_pFullFileSystem->AddSearchPath("pak01", mountGameInfo.folder.c_str(), 21);
+	if ( info.enabled )
+		g_pFullFileSystem->AddSearchPath("pak01", info.folder.c_str(), 21);
 }
 
 void GameDepot::System::MountAsFallback( Information &info )
 {
-	DevMsg("Mounting game '%s' as fallback (%s, %i)...\n", info.title.c_str(), info.folder.c_str(), info.appid);
+	DevMsg( "Mounting game '%s' as fallback (%s, %i)...\n", info.title.c_str(), info.folder.c_str(), info.appid );
 
 	std::string path = get->GameDir();
 	path += "\\sourceengine\\";

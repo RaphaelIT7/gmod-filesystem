@@ -11,14 +11,14 @@ namespace Gamemode
 class System : public IGamemodeSystem
 {
 public:
-	void OnJoinServer( const std::string & ) override;
-	void OnLeaveServer( ) override;
-	void Refresh( ) override;
-	void Clear( ) override;
-	const IGamemodeSystem::Information &Active( ) override;
-	const IGamemodeSystem::Information &FindByName( const std::string &gamemode ) override;
-	void SetActive( const std::string &gamemode ) override;
-	const std::list<IGamemodeSystem::Information> &GetList( ) const override;
+	void OnJoinServer( const std::string &strGamemode ) override;
+	void OnLeaveServer() override;
+	void Refresh() override;
+	void Clear() override;
+	const IGamemodeSystem::Information &Active() override;
+	const IGamemodeSystem::Information &FindByName( const std::string &strGamemode ) override;
+	void SetActive( const std::string &strGamemode ) override;
+	const std::list<IGamemodeSystem::Information> &GetList() const override;
 	bool IsServerBlacklisted( char const* address, char const* hostname, char const* description, char const* gm, char const* map ) override;
 	void OnServerDownloadsMounted() override;
 

@@ -20,14 +20,14 @@ public:
 		// I am unsure of these two below but we leave them as the struct size fits good enouth for GMod to accept.
 		bool retail;
 		bool bundled;
-		std::list<std::string> mountSubDirs;
+		std::list<std::string> mountSubDirs{};
 	};
 
-	virtual void Refresh( ) = 0;
-	virtual void Clear( ) = 0;
-	virtual void Save( ) = 0;
-	virtual void SetMount( uint32_t, bool ) = 0;
-	virtual void MarkGameAsMounted( const std::string ) = 0;
-	virtual const std::list<IGameDepotSystem::Information> &GetList( ) = 0;
-	virtual int GetRefreshCount( ) = 0;
+	virtual void Refresh() = 0;
+	virtual void Clear() = 0;
+	virtual void Save() = 0;
+	virtual void SetMount( uint32_t nAppID, bool bMounted ) = 0;
+	virtual void MarkGameAsMounted( const std::string strGameFolder ) = 0;
+	virtual const std::list<IGameDepotSystem::Information> &GetList() = 0;
+	virtual int GetRefreshCount() = 0;
 };

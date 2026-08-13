@@ -16,17 +16,17 @@ public: // IGameDepotSystem
 	void Refresh() override;
 	void Clear() override;
 	void Save() override;
-	void SetMount(uint32_t param_1, bool param_2) override;
-	void MarkGameAsMounted(const std::string)  override;
+	void SetMount( uint32_t nAppID, bool bMounted ) override;
+	void MarkGameAsMounted( const std::string strGameFolder ) override;
 	const std::list<IGameDepotSystem::Information> &GetList() override;
 	int GetRefreshCount() override;
 
 public: // System
 	System();
-	void FindGame( std::string &param_1 );
-	bool MountAsSteampipe( Information &param_1, bool param_2 );
-	void Mount( Information &param_1, bool param_2 );
-	void MountAsFallback( Information &param_1 );
+	void FindGame( std::string &strGameName );
+	bool MountAsSteampipe( Information &info, bool bHead );
+	void Mount( Information &info, bool bMount );
+	void MountAsFallback( Information &info );
 	void Load();
 	void Setup();
 

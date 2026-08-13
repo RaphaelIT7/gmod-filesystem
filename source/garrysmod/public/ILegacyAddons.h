@@ -14,6 +14,6 @@ public:
 		std::string gamemodepath;
 	};
 
-	virtual void Refresh( ) = 0;
-	virtual const std::list<ILegacyAddons::Information> &GetList( ) const = 0;
+	virtual void Refresh() = 0;
+	virtual const std::list<ILegacyAddons::Information> &GetList() const = 0;
 };
