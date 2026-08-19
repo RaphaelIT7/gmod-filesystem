@@ -3870,6 +3870,13 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 				bIsVPKOrPak = true;
 			}
 #endif
+			// GMod
+			{
+				char pTmpFileName[ MAX_FILEPATH ];
+				V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+				V_FixSlashes( pTmpFileName );
+				m_AddonFileSystem.FindFirst( pTmpFileName, pFindData->m_AddonSystemFiles, nullptr );
+			}
 
 			if ( bIsVPKOrPak )
 			{
@@ -3895,6 +3902,11 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 		}
 	}
 
+	// GMod
+	// RaphaelIT7: Perferably we could check if we ever hit a searchpath marked m_bIsWorkshop... would make this simpler and more consistent
+	if ( pPathID && *pPathID != '\0' && V_strcmp( pPathID, "MOD" ) != 0 && V_strcmp( pPathID, "GAME" ) != 0 && V_strcmp( pPathID, "workshop" ) != 0 )
+		m_AddonFileSystem.FindInAddon( pPathID, pWildCard, pFindData->m_AddonSystemFiles );
+
 	// We have a result from the filesystem
 	if( pFindData->findHandle != INVALID_HANDLE_VALUE )
 	{
@@ -3906,6 +3918,22 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 
 		*pHandle = hTmpHandle;
 		return pFindData->findData.cFileName;
+	}
+
+	// GMod
+	if ( !pFindData->m_AddonSystemFiles.empty() )
+	{
+		Addon::SearchFile &file = pFindData->m_AddonSystemFiles.front();
+
+		const char *pszFileName = V_UnqualifiedFileName( file.m_strFileName.c_str() );
+		V_strncpy( pFindData->findData.cFileName, pszFileName, sizeof( pFindData->findData.cFileName ) );
+		pFindData->findData.dwFileAttributes = file.m_bFolder ? FILE_ATTRIBUTE_DIRECTORY : 0;
+
+		pFindData->m_VisitedFiles.Insert( pFindData->findData.cFileName, 0 );
+		pFindData->m_AddonSystemFiles.pop_front();
+
+		*pHandle = hTmpHandle;
+		return pFindData->findData.cFileName; 
 	}
 
 	// Handle failure here
@@ -4030,6 +4058,21 @@ bool CBaseFileSystem::FindNextFileInVPKOrPakHelper( FindData_t *pFindData )
 		pFindData->m_dirMatchesFromVPKOrPak.RemoveMultipleFromHead( 1 );
 
 		return true;
+	}
+
+	// GMod
+	// RaphaelIT7 (ToDo): Add all those debug prints
+	if ( !pFindData->m_AddonSystemFiles.empty() )
+	{
+		Addon::SearchFile &file = pFindData->m_AddonSystemFiles.front();
+
+		const char *pszFileName = V_UnqualifiedFileName( file.m_strFileName.c_str() );
+		V_strncpy( pFindData->findData.cFileName, pszFileName, sizeof( pFindData->findData.cFileName ) );
+		pFindData->findData.dwFileAttributes = file.m_bFolder ? FILE_ATTRIBUTE_DIRECTORY : 0;
+
+		pFindData->m_VisitedFiles.Insert( pFindData->findData.cFileName, 0 );
+		pFindData->m_AddonSystemFiles.pop_front();
+		return true; 
 	}
 
 	return false;

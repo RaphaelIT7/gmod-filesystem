@@ -1,6 +1,7 @@
 #include "garrysmod/AddonFileSystem.h"
 #include "garrysmod/DedicatedServerAddons.h"
 #include "garrysmod/public/IAddonDownloadNotify.h"
+#include "garrysmod/public/IMenuSystem.h"
 #include "garrysmod/public/IGet.h"
 #include "garrysmod/tasks/Tasks.h"
 #include "garrysmod/AddonReader.h"
@@ -27,6 +28,18 @@ void Addon::FileSystem::Refresh()
 	Msg( "Addon::FileSystem::Refresh\n" );
 
 	UpdateModPath();
+	for ( IAddonSystem::Information &info : m_Addons )
+	{
+		if ( MountAddon( info ) )
+			continue;
+
+		if ( !info.downloaded || info.file.find( "cache/" ) == std::string::npos )
+			continue;
+
+		Warning( "Removing bad addon %s\n\n", info.file.c_str() );
+		g_pFullFileSystem->RemoveFile( info.file.c_str(), "MOD" );
+	}
+
 	Load();
 }
 
@@ -142,6 +155,9 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 		info.m_hFileHandle = hFileHandle;
 		info.m_nWsid = wsid;
 
+		if ( files )
+			files->push_back( strFileName );
+
 		auto existing = pFolder->find( strFileName );
 		if ( existing != pFolder->end() )
 		{
@@ -161,7 +177,7 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 
 bool Addon::FileSystem::ShouldMount( uint64_t wsid )
 {
-	Msg( "Addon::FileSystem::ShouldMount2 %llu\n", wsid );
+	Msg( "Addon::FileSystem::ShouldMount %llu\n", wsid );
 	auto it = m_AddonNoMount.find( wsid );
 	if ( it != m_AddonNoMount.end() )
 		return false;
@@ -177,7 +193,8 @@ bool Addon::FileSystem::ShouldMount( uint64_t wsid )
 	return false;
 }
 
-void Addon::FileSystem::SetShouldMount( uint64_t wsid, bool bShouldMount )
+// RaphaelIT7 (Verify): Does it truly return bShouldMount? Seems like that in IDA for both linux & macos
+bool Addon::FileSystem::SetShouldMount( uint64_t wsid, bool bShouldMount )
 {
 	Msg( "Addon::FileSystem::SetShouldMount\n" );
 
@@ -188,6 +205,8 @@ void Addon::FileSystem::SetShouldMount( uint64_t wsid, bool bShouldMount )
 			m_AddonNoMount.erase(it);
 	} else if (!bShouldMount)
 		m_AddonNoMount.insert( wsid );
+
+	return bShouldMount;
 }
 
 void Addon::FileSystem::Save()
@@ -370,6 +389,97 @@ bool Addon::FileSystem::UnmountFile( std::string strFileName, const char *pszRea
 	}
 
 	return false;
+}
+
+bool Addon::FileSystem::MountAddon( IAddonSystem::Information &info )
+{
+	if ( info.downloaded )
+	{
+		if ( info.canUpdate )
+		{
+			std::string outdatedPath = info.file + ".outdated";
+			if ( g_pFullFileSystem->FileExists( outdatedPath.c_str(), "MOD" ) )
+				g_pFullFileSystem->RemoveFile( outdatedPath.c_str(), "MOD" );
+		}
+
+		if ( !SetShouldMount( info.wsid, info.downloaded ) )
+			return true;
+
+		info.file = GetAddonFilepath( info.wsid, false );
+	}
+
+	if ( info.file.empty() )
+	{
+		info.failure = "Missing file";
+		Warning( "Addon '%s' (%llu) doesn't have a file, nothing to mount...\n", info.title.c_str(), info.wsid );
+		if ( get->MenuSystem() ) // RaphaelIT7: really? passing info?
+			get->MenuSystem()->SendProblemToMenu( "missing_addon_file", 2, (const char*)&info );
+
+		return false;
+	}
+
+	Addon::Reader reader( info.hcontent_file );
+	if ( !reader.OpenFile( info.file ) )
+	{
+		info.failure = "Failed to parse addon file";
+		Warning( "Couldn't mount addon file '%s' from '%s' (%llu)\n", info.file.c_str(), info.title.c_str(), info.wsid );
+		return false;
+	}
+
+	FileHandle_t hFileHandle = reader.GetPackFile();
+	if ( !hFileHandle )
+	{
+		info.failure = "Failed to open addon file";
+		Warning( "Failed to open addon file '%s', not mounting!\n", info.file.c_str() );
+		return false;
+	}
+
+	MountedAddon addon;
+	addon.m_strPath = info.file;
+	addon.m_strTitle = info.title;
+	addon.m_hFileHandle = hFileHandle;
+	addon.m_nWsid = info.wsid;
+	addon.m_nWsid2 = 0;
+	addon.m_bDeleteOnUnmount = false;
+
+	m_MountedAddons.push_back( std::move( addon ) );
+
+	for ( uint32_t i=0; i<reader.GetNumFiles(); ++i )
+	{
+		Addon::FileEntry& fileEntry = reader.GetFile( i );
+
+		std::string strFixedFolder = fileEntry.strName;
+		Bootil::String::File::FixSlashes( strFixedFolder );
+		Bootil::String::File::StripFilename( strFixedFolder );
+
+		Folder* pFolder = GetFolder( strFixedFolder, true );
+
+		std::string strFileName = fileEntry.strName;
+		Bootil::String::File::ExtractFilename( strFileName );
+
+		FileInfo fileInfo;
+		fileInfo.m_strFileName = strFileName;
+		fileInfo.m_strFolderName = strFixedFolder;
+		fileInfo.m_nSize = fileEntry.iSize;
+		fileInfo.m_nOffset = fileEntry.iOffset;
+		fileInfo.m_hFileHandle = hFileHandle;
+		fileInfo.m_nWsid = info.wsid;
+
+		auto existing = pFolder->find( strFileName );
+		if ( existing != pFolder->end() )
+		{
+			FileInfo& oldInfo = existing->second;
+			if ( oldInfo.m_nWsid != info.wsid && Bootil::String::Test::EndsWith( strFileName, ".lua" ) )
+				Warning( "Addon '%s' (%llu) contains file from %llu: '%s'\n", info.title.c_str(), info.wsid, oldInfo.m_nWsid, oldInfo.m_strFileName.c_str() );
+
+			existing->second = std::move( fileInfo );
+		}
+		else
+			pFolder->emplace( strFileName, std::move( fileInfo ) );
+	}
+
+	reader.ExtractFiles();
+	return true;
 }
 
 // RaphaelIT7 (ToDo):
@@ -785,18 +895,14 @@ void Addon::FileSystem::Load()
 {
 }
 
-void Addon::FileSystem::FindInAddon( const std::string &pPath, const std::string &pSearchPath, std::list<Addon::SearchFile> &results )
+void Addon::FileSystem::FindInAddon( const std::string &pPath, const std::string &pWildcard, std::list<Addon::SearchFile> &results )
 {
-	for ( auto it = m_Folders.begin(); it != m_Folders.end(); ++it )
+	for ( MountedAddon &addon : m_MountedAddons )
 	{
-		const std::string& folderName = it->first;
-		if ( folderName.size() != pPath.size() )
+		if ( addon.m_strTitle != pPath )
 			continue;
 
-		if ( folderName != pPath )
-			continue;
-
-		FindFirst( pSearchPath, results, 0 );
+		FindFirst( pWildcard, results, addon.m_hFileHandle );
 	}
 }
 
@@ -812,24 +918,72 @@ void Addon::FileSystem::FindFirst( const std::string &pPath, std::list<Addon::Se
 	if ( fs_tellmeyoursecrets.GetBool() )
 		Msg( "Addon[FindFirst]: strDir [%s]\n", strDir.c_str() );
 
-	Folder* folder = GetFolder( path, false );
+	for ( auto &[folderName, folder] : m_Folders )
+	{
+		if ( hFileHandle )
+		{
+			bool bHasFileFromHandle = false;
+
+			for ( const auto &[fileName, info] : folder )
+			{
+				if ( info.m_hFileHandle == hFileHandle )
+				{
+					bHasFileFromHandle = true;
+					break;
+				}
+			}
+
+			if ( !bHasFileFromHandle )
+				continue;
+		}
+
+		if ( !Bootil::String::Test::Wildcard( path, folderName ) )
+			continue;
+
+		if ( folderName.length() < strDir.length() )
+			continue;
+
+		std::string relative = folderName.substr( strDir.length() );
+		Bootil::String::Util::Trim( relative, "/" );
+		if ( relative.empty() )
+			continue;
+
+		if ( Bootil::String::Util::Count( relative, '/' ) > 0 )
+			continue;
+
+		if ( fs_tellmeyoursecrets.GetBool() )
+			Msg( "Addon[FindFirst]: Folder Match [%s]\n", relative.c_str() );
+
+		SearchFile sf;
+		sf.m_strFileName = relative;
+		sf.m_bFolder = true;
+		results.push_back( std::move( sf ) );
+	}
+
+	Folder* folder = GetFolder( strDir, false );
 	if ( !folder || folder->empty() )
+	{
+		if ( fs_tellmeyoursecrets.GetBool() )
+			Msg( "Addon[FindFirst]: No matching folders or folder contains no files\n" );
+
 		return;
+	}
 
 	for ( auto& [name, info] : *folder )
 	{
-		if ( !Bootil::String::Test::Wildcard( strDir, name ) )
+		if ( hFileHandle && info.m_hFileHandle != hFileHandle )
 			continue;
 
 		std::string full = strDir + name;
-		if ( !Bootil::String::Test::Wildcard( full, full ) )
+		if ( !Bootil::String::Test::Wildcard( path, full ) )
 			continue;
 
 		if ( fs_tellmeyoursecrets.GetBool() )
 			Msg( "Addon[FindFirst]: Adding File [%s]\n", full.c_str() );
 
 		SearchFile sf;
-		sf.m_strFileName = full;
+		sf.m_strFileName = name;
+		sf.m_bFolder = false;
 		results.push_back( std::move( sf ) );
 	}
 }

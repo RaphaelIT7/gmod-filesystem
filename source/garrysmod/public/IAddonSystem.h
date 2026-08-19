@@ -37,7 +37,7 @@ public:
 		std::string title;
 		std::string file;
 		std::string tags;
-		std::string placeholder1;
+		std::string failure; // only set when the addon failed to mount?
 		uint64_t time_updated;
 		uint64_t wsid;
 		uint64_t creator;
@@ -78,7 +78,7 @@ public:
 	virtual void Refresh() = 0;
 	virtual bool MountFile( const std::string &gmaPath, std::vector<std::string> *files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource source ) = 0;
 	virtual bool ShouldMount( uint64_t wsid ) = 0;
-	virtual void SetShouldMount( uint64_t wsid, bool bShouldMount ) = 0;
+	virtual bool SetShouldMount( uint64_t wsid, bool bShouldMount ) = 0;
 	virtual void Save() = 0;
 	virtual const std::list<IAddonSystem::Information> &GetList() const = 0;
 	virtual const std::list<IAddonSystem::UGCInfo> &GetUGCList() const = 0;

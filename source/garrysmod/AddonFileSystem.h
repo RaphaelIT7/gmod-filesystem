@@ -31,7 +31,7 @@ struct MountedAddon
 struct SearchFile
 {
 	std::string m_strFileName;
-	bool        m_bFound = false;
+	bool		m_bFolder = false;
 };
 
 using Folder = std::map<std::string, Addon::FileInfo>;
@@ -44,7 +44,7 @@ public: // IAddonSystem
 	void Refresh() override;
 	bool MountFile( const std::string &gmaPath, std::vector<std::string> *files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource source ) override;
 	bool ShouldMount( uint64_t wsid ) override;
-	void SetShouldMount( uint64_t wsid, bool bShouldMount ) override;
+	bool SetShouldMount( uint64_t wsid, bool bShouldMount ) override;
 	void Save() override;
 	const std::list<IAddonSystem::Information> &GetList() const override;
 	const std::list<IAddonSystem::UGCInfo> &GetUGCList() const override;
@@ -87,6 +87,7 @@ public: // FileSystem
 	void NormalizePath( std::string &strFileName );
 	void SendUGCListUpdate();
 	bool UnmountFile( std::string strFileName, const char *pszReason );
+	bool MountAddon( IAddonSystem::Information &info );
 
 	FileInfo *GetFile( std::string strFileName );
 	FileHandle *GetFileEntry( std::string strFileName );

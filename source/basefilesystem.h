@@ -680,6 +680,9 @@ public:
 													// that we don't return the same file more than once.
 		CUtlStringList		m_fileMatchesFromVPKOrPak;
 		CUtlStringList		m_dirMatchesFromVPKOrPak;
+
+		// GMod
+		std::list<Addon::SearchFile> m_AddonSystemFiles;
 	};
 
 	friend class CSearchPath;
