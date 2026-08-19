@@ -5995,7 +5995,7 @@ void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const cha
 // Update: It does exist in newer build and in fact is called
 void CBaseFileSystem::GMOD_FixPathCase( char *pszPath, size_t nPathLength )
 {
-	Msg( "CBaseFileSystem::GMOD_FixPathCase\n" );
+	Msg( "CBaseFileSystem::GMOD_FixPathCase (%s)\n", pszPath );
 
 	char szFixedPath[260];
 #ifdef POSIX

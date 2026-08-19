@@ -63,7 +63,7 @@ Addon::Folder* Addon::FileSystem::GetFolder( const std::string &strPath, bool bC
 // It currently crashes after the last call made here, idk why.
 bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::string>* files, uint64_t wsid, uint64_t wsid2, IAddonSystem::AddonSource source )
 {
-	Msg( "Addon::FileSystem::MountFile\n" );
+	Msg( "Addon::FileSystem::MountFile (%s - %llu - %llu - %i)\n", gmaPath.c_str(), wsid, wsid2, source.m_UnknownValue );
 
 	std::string strAddonPath = gmaPath;
 	Bootil::String::Lower( strAddonPath );
@@ -177,7 +177,7 @@ bool Addon::FileSystem::MountFile( const std::string& gmaPath, std::vector<std::
 
 bool Addon::FileSystem::ShouldMount( uint64_t wsid )
 {
-	Msg( "Addon::FileSystem::ShouldMount %llu\n", wsid );
+	Msg( "Addon::FileSystem::ShouldMount (%llu)\n", wsid );
 	auto it = m_AddonNoMount.find( wsid );
 	if ( it != m_AddonNoMount.end() )
 		return false;
@@ -188,7 +188,7 @@ bool Addon::FileSystem::ShouldMount( uint64_t wsid )
 			return true;
 	}
 
-	Msg( "CAddonFileSystem::ShouldMount Nope? %llu\n", wsid );
+	Msg( "CAddonFileSystem::ShouldMount Nope? (%llu)\n", wsid );
 
 	return false;
 }
@@ -196,7 +196,7 @@ bool Addon::FileSystem::ShouldMount( uint64_t wsid )
 // RaphaelIT7 (Verify): Does it truly return bShouldMount? Seems like that in IDA for both linux & macos
 bool Addon::FileSystem::SetShouldMount( uint64_t wsid, bool bShouldMount )
 {
-	Msg( "Addon::FileSystem::SetShouldMount\n" );
+	Msg( "Addon::FileSystem::SetShouldMount (%llu - %s)\n", wsid, bShouldMount ? "true" : "false" );
 
 	auto it = m_AddonNoMount.find( wsid );
 	if (it != m_AddonNoMount.end())
@@ -250,7 +250,7 @@ const std::list<IAddonSystem::UGCInfo>& Addon::FileSystem::GetUGCList() const
 
 void Addon::FileSystem::ScanForSubscriptions( const char *unknown1, bool unknown2 ) // NOTE: Gmod uses the Steamworks 1.57. The sourcesdk-minimal was outdated.
 {
-	Msg( "CAddonFileSystem::ScanForSubscriptions (%s)\n", unknown1 );
+	Msg( "CAddonFileSystem::ScanForSubscriptions (%s - %s)\n", unknown1, unknown2 ? "true" : "false" );
 	if (!get)
 	{
 		Error( "SFS: !get" );
@@ -393,6 +393,8 @@ bool Addon::FileSystem::UnmountFile( std::string strFileName, const char *pszRea
 
 bool Addon::FileSystem::MountAddon( IAddonSystem::Information &info )
 {
+	Msg( "Addon::FileSystem::MountAddon (%llu)\n", info.wsid );
+
 	if ( info.downloaded )
 	{
 		if ( info.canUpdate )
@@ -506,12 +508,16 @@ int64_t Addon::FileSystem::GetFileSize(std::string strRelativeFileName)
 	return pInfo->m_nSize;
 }
 
-// RaphaelIT7 (ToDo):
-// We are missing ALL the fs_tellmeyoursecrets prints... we don't even have the convar yet
 Addon::FileInfo *Addon::FileSystem::GetFile( std::string strFileName )
 {
+	if ( fs_tellmeyoursecrets.GetBool() )
+		Msg( "Addon[GetFile]: [%s]\n", strFileName.c_str() );
+
 	std::string strNormalizedPath = strFileName;
 	NormalizePath( strNormalizedPath );
+
+	if ( fs_tellmeyoursecrets.GetInt() > 1 )
+		Msg( "Addon[GetFile]: Normalized [%s]\n", strNormalizedPath.c_str() );
 
 	std::string folderPath = strNormalizedPath;
 	Bootil::String::File::StripFilename( folderPath );
@@ -520,13 +526,15 @@ Addon::FileInfo *Addon::FileSystem::GetFile( std::string strFileName )
 	if ( !folder || !folder->size() )
 		return nullptr;
 
-	Msg( "Addon::FileSystem::GetFile(%s)\n", strFileName.c_str() );
 	std::string fileName = strNormalizedPath;
 	Bootil::String::File::ExtractFilename( fileName );
 
 	auto it = folder->find( fileName );
 	if ( it == folder->end() )
 		return nullptr;
+	
+	if ( fs_tellmeyoursecrets.GetBool() ) // RaphaelIT7: Custom one
+		Msg( "Addon[GetFile]: Found [%s]\n", fileName.c_str() );
 
 	return &it->second;
 }
@@ -597,7 +605,7 @@ IAddonDownloadNotification *Addon::FileSystem::Notify()
 
 bool Addon::FileSystem::IsSubscribed( uint64_t wsid )
 {
-	Msg( "Addon::FileSystem::IsSubscribed %llu\n", wsid );
+	Msg( "Addon::FileSystem::IsSubscribed (%llu)\n", wsid );
 	for ( IAddonSystem::Information info : m_Addons )
 	{
 		if ( info.wsid == wsid )
@@ -609,7 +617,7 @@ bool Addon::FileSystem::IsSubscribed( uint64_t wsid )
 
 const IAddonSystem::Information* Addon::FileSystem::FindFileOwner( const std::string &strFileName )
 {
-	Msg( "Addon::FileSystem::FindFileOwner\n" );
+	Msg( "Addon::FileSystem::FindFileOwner (%s)\n", strFileName.c_str() );
 	std::string strNormalizedFileName = strFileName;
 	NormalizePath( strNormalizedFileName );
 
@@ -637,7 +645,7 @@ const IAddonSystem::Information* Addon::FileSystem::FindFileOwner( const std::st
 // RaphaelIT7: Note for me dumb dumb. If we give it something, m_Addons makes a copy!
 void Addon::FileSystem::AddAddon( const IAddonSystem::Information &info )
 {
-	Msg( "Addon::FileSystem::AddAddon\n" );
+	Msg( "Addon::FileSystem::AddAddon (%llu)\n", info.wsid );
 	m_Addons.push_back( info );
 }
 
@@ -660,7 +668,7 @@ Addon::AddonType Addon::FileSystem::GetAddonType(SteamUGCDetails_t details)
 
 std::string Addon::FileSystem::GetAddonFilepath( uint64 wsid, bool bGMAOnly )
 {
-	Msg( "Addon::FileSystem::GetAddonFilepath(%llu - %s)\n", wsid, bGMAOnly ? "true" : "false" );
+	Msg( "Addon::FileSystem::GetAddonFilepath (%llu - %s)\n", wsid, bGMAOnly ? "true" : "false" );
 	char szFolder[260];
 	uint64 size;
 	uint32 timestamp;
@@ -700,7 +708,7 @@ std::string Addon::FileSystem::GetAddonFilepath( uint64 wsid, bool bGMAOnly )
 
 void Addon::FileSystem::UnmountAddon( uint64_t wsid, const char *pszReason )
 {
-	Msg( "Addon::FileSystem::UnmountAddon (%s)\n", pszReason );
+	Msg( "Addon::FileSystem::UnmountAddon (%llu - %s)\n", wsid, pszReason );
 }
 
 void Addon::FileSystem::UnmountServerAddons()
@@ -710,7 +718,7 @@ void Addon::FileSystem::UnmountServerAddons()
 
 std::string Addon::FileSystem::IsAddonValidPreInstall( SteamUGCDetails_t details )
 {
-	Msg( "Addon::FileSystem::IsAddonValidPreInstall\n" );
+	Msg( "Addon::FileSystem::IsAddonValidPreInstall (%llu)\n", details.m_nPublishedFileId );
 	if ( details.m_bBanned )
 		return "Addon is banned";
 
@@ -880,12 +888,12 @@ void Addon::FileSystem::AddUGCFile( SteamUGCDetails_t details, Addon::AddonType 
 
 void Addon::FileSystem::OnAddonSubscribed( const SteamUGCDetails_t &details )
 {
-	Msg( "Addon::FileSystem::OnAddonSubscribed\n" );
+	Msg( "Addon::FileSystem::OnAddonSubscribed (%llu)\n", details.m_nPublishedFileId );
 }
 
 void Addon::FileSystem::AddUnloadedSubscription( uint64_t wsid )
 {
-	Msg( "Addon::FileSystem::AddUnloadedSubscription\n" );
+	Msg( "Addon::FileSystem::AddUnloadedSubscription (%llu)\n", wsid );
 }
 
 void Addon::FileSystem::EnableLoadingUnloadedAddons()
@@ -906,13 +914,13 @@ void Addon::FileSystem::MarkChanged()
 
 void Addon::FileSystem::OnAddonDownloaded( const IAddonSystem::Information &info )
 {
-	Msg( "Addon::FileSystem::AddonDownloaded\n" );
+	Msg( "Addon::FileSystem::AddonDownloaded (%llu)\n", info.wsid );
 	MarkChanged();
 }
 
 void Addon::FileSystem::OnAddonDownloadFailed( const IAddonSystem::Information &info )
 {
-	Msg( "Addon::FileSystem::OnAddonDownloadFailed\n" );
+	Msg( "Addon::FileSystem::OnAddonDownloadFailed (%llu)\n", info.wsid );
 }
 
 void Addon::FileSystem::Load()
