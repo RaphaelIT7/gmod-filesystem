@@ -117,6 +117,30 @@ static void LogFileOpen( const char *vpk, const char *pFilename, const char *pAb
 }
 
 
+// RaphaelIT7:
+// Hack! When comparing openInfo.m_AbsolutePath against m_AddonFileSystem.ModPath() we may differ in slashes!
+static bool PathStartsWith( const char *pszPath, const char *pszPrefix )
+{
+	if ( !pszPath || !pszPrefix )
+		return false;
+
+	while ( *pszPrefix )
+	{
+		char a = *pszPath++;
+		char b = *pszPrefix++;
+		if ( a == '\\' )
+			a = '/';
+
+		if ( b == '\\' )
+			b = '/';
+
+		if ( tolower( static_cast<unsigned char>( a ) ) != tolower( static_cast<unsigned char>( b ) ) )
+			return false;
+	}
+
+	return true;
+}
+
 static CBaseFileSystem *g_pBaseFileSystem;
 CBaseFileSystem *BaseFileSystem()
 {
@@ -1433,6 +1457,16 @@ void CBaseFileSystem::AddSearchPathInternal( const char *pPath, const char *path
 		Assert( nIndex >= 0 );
 	}
 
+	// GMod
+	// RaphaelIT7:
+	// This is due to our optimization, let's check if this SearchPath is another workshop/
+	// An example would be workshop/lua/
+	if ( !m_AddonFileSystem.ModPath().empty() ) // We check for empty as it may have not been set early on!
+	{
+		if ( PathStartsWith( newPath, m_AddonFileSystem.ModPath().c_str() ) )
+			addType |= PATH_FLAG_ISWORKSHOP;
+	}
+
 	// GMOD
 	CSearchPath *sp = NewSearchPath( addType );
 	
@@ -2136,6 +2170,30 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 {
 	openInfo.m_pFileHandle = nullptr;
 
+	// RaphaelIT7:
+	// When mounting the map_pack.bsp we may try when reading it the absolute path! So we must lookup in workshop
+	bool bIsWorkshop = false;
+	if ( bIsAbsolutePath && !m_AddonFileSystem.ModPath().empty() ) // We check for empty as it may have not been set early on!
+		bIsWorkshop = PathStartsWith( openInfo.m_AbsolutePath, m_AddonFileSystem.ModPath().c_str() );
+
+	// GMod
+	if ( openInfo.m_pSearchPath && openInfo.m_pSearchPath->m_bIsWorkshop || bIsWorkshop )
+	{
+		Addon::FileHandle *pHandle = m_AddonFileSystem.GetFileEntry( openInfo.m_AbsolutePath );
+		if ( pHandle )
+		{
+			openInfo.m_pFileHandle = new CFileHandle( this );
+			openInfo.m_pFileHandle->m_pAddonFileHandle = pHandle;
+			openInfo.m_pFileHandle->m_type = FT_NORMAL;
+			openInfo.m_pFileHandle->m_nLength = pHandle->Size();
+
+			openInfo.SetResolvedFilename( openInfo.m_AbsolutePath );
+		}
+
+		// RaphaelIT7: We avoid disk lookup for workshop/ as we expect it to not exist anyways
+		return;
+	}
+
 	int64 size;
 	FILE *fp = Trace_FOpen( openInfo.m_AbsolutePath, openInfo.m_pOptions, openInfo.m_Flags, &size );
 	if ( fp )
@@ -2164,18 +2222,6 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 
 		// GMod - Returns on hit
 		return;
-	}
-
-	// RaphaelIT7 (ToDo): We should be able to optimize this very easily.
-	Addon::FileHandle *pHandle = m_AddonFileSystem.GetFileEntry( openInfo.m_AbsolutePath );
-	if ( pHandle )
-	{
-		openInfo.m_pFileHandle = new CFileHandle( this );
-		openInfo.m_pFileHandle->m_pAddonFileHandle = pHandle;
-		openInfo.m_pFileHandle->m_type = FT_NORMAL;
-		openInfo.m_pFileHandle->m_nLength = pHandle->Size();
-
-		openInfo.SetResolvedFilename( openInfo.m_AbsolutePath );
 	}
 }
 
@@ -2697,6 +2743,18 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 		}
 
 		V_FixSlashes( pTmpFileName );
+		// GMod
+		if ( path->m_bIsWorkshop )
+		{
+
+			int64 iSize = m_AddonFileSystem.GetFileSize( pTmpFileName );
+			if ( iSize >= 0 )
+				return 1L;
+
+			// RaphaelIT7:
+			// Do not lookup on disk.
+			return 0L;
+		}
 
 		if ( FS_stat( pTmpFileName, &buf ) != -1 )
 		{
@@ -2710,13 +2768,6 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 			return buf.st_mtime;
 		}
 #endif
-
-		// GMod
-		{
-			int64 iSize = m_AddonFileSystem.GetFileSize( pTmpFileName );
-			if ( iSize >= 0 )
-				return 1L;
-		}
 	}
 
 	return ( 0L );
@@ -3720,13 +3771,18 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 			V_FixSlashes( pTmpFileName );
 
 			// GMod
-			if ( m_AddonFileSystem.IsDirectory( pTmpFileName ) )
-				return true;
-
-			if ( FS_stat( pTmpFileName, &buf ) != -1 )
+			if ( pSearchPath->m_bIsWorkshop )
 			{
-				if ( buf.st_mode & _S_IFDIR )
+				if ( m_AddonFileSystem.IsDirectory( pTmpFileName ) )
 					return true;
+			}
+			else
+			{
+				if ( FS_stat( pTmpFileName, &buf ) != -1 )
+				{
+					if ( buf.st_mode & _S_IFDIR )
+						return true;
+				}
 			}
 		}
 	}
@@ -3891,6 +3947,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 			}
 #endif
 			// GMod
+			if ( pSearchPath->m_bIsWorkshop )
 			{
 				char pTmpFileName[ MAX_FILEPATH ];
 				V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
@@ -3925,6 +3982,9 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 		// RaphaelIT7: Since the above code may break out when having found something, we must iterate down here too!
 		FOR_EACH_LL_( m_SearchPaths, pSearchPath )
 		{
+			if ( !pSearchPath->m_bIsWorkshop )
+				continue;
+
 			if ( FilterByPathID( pSearchPath, pFindData->m_FilterPathID ) )
 				continue;
 
@@ -4352,6 +4412,7 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 		V_FixSlashes( pTmpFileName );
 
 		// GMod
+		if ( pSearchPath->m_bIsWorkshop )
 		{
 			std::string strFullFileName = m_AddonFileSystem.ResolveFile( pTmpFileName );
 			if ( !strFullFileName.empty() )
@@ -4724,6 +4785,7 @@ CBaseFileSystem::CSearchPath::CSearchPath( void )
 	m_bIsRemotePath = false;
 	m_pPackedStore = nullptr;
 	m_bIsTrustedForPureServer = false;
+	m_bIsWorkshop = false;
 }
 
 const char *CBaseFileSystem::CSearchPath::GetDebugString() const
@@ -5661,6 +5723,10 @@ CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 	// bit 8 = VPK hack flag?
 
 	const bool bVPKHack = (addType >> 8) & 1;
+	const bool bIsWorkshop = (addType & PATH_FLAG_ISWORKSHOP) != 0;
+	// RaphaelIT7:
+	// We changed PATH_PRIORITY_MASK to 0xFE & made this a whitelist instead
+	// The old approach of ignoring bit 8 failed when we added new flags, so instead we now only select bits 1-7 for priorityGroup
 	CPathPriorityGroup_t priorityGroup = static_cast<CPathPriorityGroup_t>( ( addType & PATH_PRIORITY_MASK ) >> 1 );
 	if ( priorityGroup == GN_UNSET )
 		priorityGroup = GN_ENGINECORE;
@@ -5694,6 +5760,7 @@ CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 
 	result->m_PriorityGroupID = priorityGroup;
 	result->m_bVPKHack = bVPKHack;
+	result->m_bIsWorkshop = bIsWorkshop;
 	return result;
 }
 
@@ -5905,9 +5972,9 @@ void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const cha
 	//
 	// Workshop
 	//
-	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "workshop", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "thirdparty", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) | PATH_FLAG_ISWORKSHOP );
+	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "workshop", PRIORITY_GROUP_TAIL( GN_GMODCORE ) | PATH_FLAG_ISWORKSHOP );
+	AddSearchPath( ( m_strModPath + "/workshop" ).c_str(), "thirdparty", PRIORITY_GROUP_TAIL( GN_GMODCORE ) | PATH_FLAG_ISWORKSHOP );
 
 	//
 	// GMod content
