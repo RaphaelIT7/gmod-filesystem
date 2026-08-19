@@ -2743,6 +2743,18 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 		}
 
 		V_FixSlashes( pTmpFileName );
+		// GMod
+		if ( path->m_bIsWorkshop )
+		{
+
+			int64 iSize = m_AddonFileSystem.GetFileSize( pTmpFileName );
+			if ( iSize >= 0 )
+				return 1L;
+
+			// RaphaelIT7:
+			// Do not lookup on disk.
+			return 0L;
+		}
 
 		if ( FS_stat( pTmpFileName, &buf ) != -1 )
 		{
@@ -2756,14 +2768,6 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 			return buf.st_mtime;
 		}
 #endif
-
-		// GMod
-		if ( path->m_bIsWorkshop )
-		{
-			int64 iSize = m_AddonFileSystem.GetFileSize( pTmpFileName );
-			if ( iSize >= 0 )
-				return 1L;
-		}
 	}
 
 	return ( 0L );
