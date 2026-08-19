@@ -54,6 +54,7 @@ ConVar fs_warning_mode( "fs_warning_mode", "0", 0, "0:Off, 1:Warn main thread, 2
 
 // GMod
 ConVar fs_tellmeyoursecrets( "fs_tellmeyoursecrets", "0", 0, "0:Off, 1:On, 2:Extra" );
+ConVar fs_usecache( "fs_usecache", "1", 0, "Enables the filesystem to build filelists to use instead of disk lookups" );
 
 constexpr inline int BSPOUTPUT{0};	// bsp output flag -- determines type of fs_log output to generate
 
@@ -86,6 +87,51 @@ static bool V_CheckDoubleSlashes( const char *pStr )
 #else
 #define CHECK_DOUBLE_SLASHES( x ) 
 #endif
+
+// RaphaelIT7:
+// Try to deal with bs paths like materials\\..\\backgrounds
+// V_RemoveDotSlashes exists BUT it doesn't do both seperators unlike this one
+static void NormalizeGamePath( char *pszPath )
+{
+    char* src = pszPath;
+    char* dst = pszPath;
+    while ( *src )
+    {
+        if ( src[0] == '.' && ( src[1] == '\\' || src[1] == '/' ) )
+        {
+            src += 2;
+            continue;
+        }
+
+        if ( src[0] == '.' && src[1] == '.' && ( src[2] == '\\' || src[2] == '/' ) )
+        {
+            // Remove previous component.
+            if ( dst > pszPath )
+            {
+                --dst;
+
+                while ( dst > pszPath && dst[-1] != '\\' && dst[-1] != '/' )
+                    --dst;
+            }
+
+            src += 3;
+            continue;
+        }
+
+        *dst++ = *src++;
+    }
+
+    *dst = '\0';
+}
+
+// RaphaelIT7:
+// Using printf( "%s%s" ) is a real waste! So we replact it with this
+// This only now becomes a bit noticeable in performance results thanks to our cache making lookups fast already
+inline void ComposeSearchPath( char *pOut, size_t nOutSize, const char *pSearchPath, const char *pFileName )
+{
+	V_strncpy( pOut, pSearchPath, nOutSize );
+	V_strcat( pOut, pFileName, nOutSize );
+}
 
 static void LogFileOpen( const char *vpk, const char *pFilename, const char *pAbsPath )
 {
@@ -853,7 +899,7 @@ bool CBaseFileSystem::AddPackFile( const char *pFileName, const char *pathID )
 bool CBaseFileSystem::AddPackFileFromPath( const char *pPath, const char *pakfile, bool bCheckForAppendedPack, const char *pathID )
 {
 	char fullpath[ MAX_PATH ];
-	V_sprintf_safe( fullpath, "%s%s", pPath, pakfile );
+	ComposeSearchPath( fullpath, sizeof( fullpath ), pPath, pakfile );
 	Q_FixSlashes( fullpath );
 
 	struct	_stat buf;
@@ -910,6 +956,10 @@ bool CBaseFileSystem::AddPackFileFromPath( const char *pPath, const char *pakfil
 
 void CBaseFileSystem::AddPackFiles( const char *pPath, const CUtlSymbol &pathID, SearchPathAdd_t addType )
 {
+	// RaphaelIT7:
+	// iirc GMod never would add a .zip?
+	// GMod never accounted for this as no NewSearchPath call is setup here either...
+	Assert( false );
 	Assert( ThreadInMainThread() );
 	DISK_INTENSIVE();
 
@@ -1475,6 +1525,7 @@ void CBaseFileSystem::AddSearchPathInternal( const char *pPath, const char *path
 
 	// all matching paths have a reference to the same store
 	sp->m_storeId = id;
+	sp->SetupFileList();
 }
 
 //-----------------------------------------------------------------------------
@@ -2091,13 +2142,15 @@ public:
 	
 	~CFileOpenInfo() = default;
 	
-	void SetAbsolutePath( const char *pFormat, ... )
+	void SetAbsolutePath( const char *pSearchPath, const char *pFileName )
 	{
-		va_list marker;
-		va_start( marker, pFormat ); //-V2018 //-V2019
-		V_vsprintf_safe( m_AbsolutePath, pFormat, marker );
-		va_end( marker );
+		ComposeSearchPath( m_AbsolutePath, sizeof( m_AbsolutePath ), pSearchPath, pFileName );
+		V_FixSlashes( m_AbsolutePath );
+	}
 
+	void SetAbsolutePath( const char *pszAbsolutePath )
+	{
+		V_strncpy( m_AbsolutePath, pszAbsolutePath, sizeof( m_AbsolutePath ) );
 		V_FixSlashes( m_AbsolutePath );
 	}
 	
@@ -2194,6 +2247,20 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 		return;
 	}
 
+	// RaphaelIT7:
+	// We do not use the cache for absolute paths!
+	// Absolute paths are used by GMod for example when mounting a gma
+	// The path will be somewhere in the steamapps/workshop/4000 which we did not scan (and never will)
+	if ( !bIsAbsolutePath )
+	{
+		FileCacheEntry eCacheEntry = g_pBaseFileSystem->m_DiskFileTree.ContainsPath( openInfo.m_AbsolutePath );
+
+		// openInfo.m_pFileName is a mess due to \\..\\ not yet being normalized!
+		// eCacheEntry = openInfo.m_pSearchPath->ContainsPath( openInfo.m_pFileName );
+		if ( eCacheEntry != FileCacheEntry::FILE && eCacheEntry != FileCacheEntry::UNKNOWN )
+			return;
+	}
+
 	int64 size;
 	FILE *fp = Trace_FOpen( openInfo.m_AbsolutePath, openInfo.m_pOptions, openInfo.m_Flags, &size );
 	if ( fp )
@@ -2211,6 +2278,14 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 			Plat_DebugString( "\n" );
 		}
 
+		// RaphaelIT7: Debugging
+		/* if ( eCacheEntry != FileCacheEntry::FILE && eCacheEntry != FileCacheEntry::UNKNOWN )
+		{
+			__debugbreak();
+			openInfo.m_pSearchPath->ContainsPath( openInfo.m_pFileName );
+			__debugbreak();
+		}*/
+
 		openInfo.m_pFileHandle = new CFileHandle(this);
 		openInfo.m_pFileHandle->m_pFile = fp;
 		openInfo.m_pFileHandle->m_type = FT_NORMAL;
@@ -2223,6 +2298,9 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 		// GMod - Returns on hit
 		return;
 	}
+
+	// RaphaelIT7: If this happens then the file was removed from disk and we didn't know yet
+	g_pBaseFileSystem->m_DiskFileTree.RemovePath( openInfo.m_AbsolutePath );
 }
 
 
@@ -2286,7 +2364,10 @@ FileHandle_t CBaseFileSystem::FindFileInSearchPath( CFileOpenInfo &openInfo )
 	V_strcpy_safe( szLowercaseFilename, openInfo.m_pFileName );
 	V_strlower( szLowercaseFilename );
 
-	openInfo.SetAbsolutePath( "%s%s", openInfo.m_pSearchPath->GetPathString(), szLowercaseFilename );
+	// RaphaelIT7: BUG! Source apparently allows materials\\..\\backgrounds why?
+	NormalizeGamePath( szLowercaseFilename );
+
+	openInfo.SetAbsolutePath( openInfo.m_pSearchPath->GetPathString(), szLowercaseFilename );
 
 	// now have an absolute name
 	HandleOpenRegularFile( openInfo, false );
@@ -2346,7 +2427,7 @@ FileHandle_t CBaseFileSystem::OpenForRead( const char *pFileNameT, const char *p
 	// If so, don't bother iterating search paths.
 	if ( V_IsAbsolutePath( pFileName ) )
 	{
-		openInfo.SetAbsolutePath( "%s", pFileName );
+		openInfo.SetAbsolutePath( pFileName );
 
 		// Check if it's of the form C:/a/b/c/blah.zip/materials/blah.vtf
 		// an absolute path can encode a zip pack file (i.e. caller wants to open the file from within the pack file)
@@ -2495,6 +2576,8 @@ FileHandle_t CBaseFileSystem::OpenForWrite( const char *pFileName, const char *p
 	{
 		return nullptr;
 	}
+
+	g_pBaseFileSystem->m_DiskFileTree.AddPath( pTmpFileName, FileCacheEntry::FILE );
 
 	auto *fh = new CFileHandle( this );
 	fh->m_nLength = size;
@@ -2739,7 +2822,7 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 		}
 		else
 		{
-			V_sprintf_safe( pTmpFileName, "%s%s", path->GetPathString(), pFileName );
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), path->GetPathString(), pFileName );
 		}
 
 		V_FixSlashes( pTmpFileName );
@@ -2753,6 +2836,21 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 
 			// RaphaelIT7:
 			// Do not lookup on disk.
+			return 0L;
+		}
+
+		// RaphaelIT7: We force lower for consistency!
+		V_strlower( pTmpFileName );
+		NormalizeGamePath( pTmpFileName );
+		FileCacheEntry eCacheEntry = g_pBaseFileSystem->m_DiskFileTree.ContainsPath( pTmpFileName );
+
+		// RaphaelIT7: We check == INVALID since FS_stat works on both file and folder so we must allow both!
+		if ( eCacheEntry == FileCacheEntry::INVALID )
+		{
+			// RaphaelIT7: Debugging
+			//if ( FS_stat( pTmpFileName, &buf ) != -1 )
+			//	__debugbreak();
+
 			return 0L;
 		}
 
@@ -3268,7 +3366,7 @@ long CBaseFileSystem::GetFileTime( const char *pFileName, const char *pPathID )
 				}
 				else
 				{
-					V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), tempFileName );
+					ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), tempFileName );
 				}
 
 				V_FixSlashes( tempFileName );
@@ -3311,7 +3409,7 @@ long CBaseFileSystem::GetPathTime( const char *pFileName, const char *pPathID )
 				}
 				else
 				{
-					V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), tempFileName );
+					ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), tempFileName );
 				}
 
 				V_FixSlashes( tempFileName );
@@ -3667,7 +3765,7 @@ bool CBaseFileSystem::IsFileWritable( char const *pFileName, char const *pPathID
 	for ( CSearchPath *pSearchPath = iter.GetFirst(); pSearchPath != nullptr; pSearchPath = iter.GetNext() )
 	{
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
 
 		if ( FS_stat( pTmpFileName, &buf ) != -1 )
@@ -3710,7 +3808,7 @@ bool CBaseFileSystem::SetFileWritable( char const *pFileName, bool writable, con
 	for ( CSearchPath *pSearchPath = iter.GetFirst(); pSearchPath != nullptr; pSearchPath = iter.GetNext() )
 	{
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
 
 		if ( FS_chmod( pTmpFileName, pmode ) == 0 )
@@ -3741,6 +3839,9 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 	V_StripTrailingSlash( pTempBuf );
 	pFileName = pTempBuf;
 
+	// RaphaelIT7: Just to avoid weird issues
+	NormalizeGamePath( pTempBuf );
+
 	char tempPathID[MAX_PATH];
 	ParsePathID( pFileName, pathID, tempPathID );
 	if ( V_IsAbsolutePath( pFileName ) )
@@ -3767,7 +3868,7 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 #endif // SUPPORT_PACKED_STORE
 		{
 			char pTmpFileName[ MAX_FILEPATH ];
-			V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 			V_FixSlashes( pTmpFileName );
 
 			// GMod
@@ -3778,10 +3879,31 @@ bool CBaseFileSystem::IsDirectory( const char *pFileName, const char *pathID )
 			}
 			else
 			{
+				// RaphaelIT7: We force lower for consistency!
+				V_strlower( pTmpFileName );
+				FileCacheEntry eCacheEntry = g_pBaseFileSystem->m_DiskFileTree.ContainsPath( pTmpFileName );
+
+				// RaphaelIT7: We check == INVALID since FS_stat works on both file and folder so we must allow both!
+				if ( eCacheEntry != FileCacheEntry::FOLDER && eCacheEntry != FileCacheEntry::UNKNOWN )
+				{
+					// RaphaelIT7: Debugging
+					//if ( FS_stat( pTmpFileName, &buf ) != -1 )
+					//	__debugbreak();
+
+					continue;
+				}
+
+				// RaphaelIT7:
+				// We can just return true since it's said to be a folder?
+				// Verify: Lets be certain first before we truly just skip the disk check!
+				// return true;
 				if ( FS_stat( pTmpFileName, &buf ) != -1 )
 				{
 					if ( buf.st_mode & _S_IFDIR )
 						return true;
+				} else {
+					// RaphaelIT7: As fallback since apparently it's no longer a folder?
+					g_pBaseFileSystem->m_DiskFileTree.RemovePath( pTmpFileName );
 				}
 			}
 		}
@@ -3838,6 +3960,8 @@ void CBaseFileSystem::CreateDirHierarchy( const char *pRelativePathT, const char
 					szScratchFileName,
 					pRelativePathT,
 					std::generic_category().message(errno).c_str() );
+			} else {
+				g_pBaseFileSystem->m_DiskFileTree.AddPath( szScratchFileName, FileCacheEntry::FOLDER );
 			}
 
 			*s = CORRECT_PATH_SEPARATOR;
@@ -3856,6 +3980,8 @@ void CBaseFileSystem::CreateDirHierarchy( const char *pRelativePathT, const char
 			szScratchFileName,
 			pRelativePathT,
 			std::generic_category().message(errno).c_str() );
+	} else {
+		g_pBaseFileSystem->m_DiskFileTree.AddPath( szScratchFileName, FileCacheEntry::FOLDER );
 	}
 }
 
@@ -3950,7 +4076,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 			if ( pSearchPath->m_bIsWorkshop )
 			{
 				char pTmpFileName[ MAX_FILEPATH ];
-				V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+				ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
 				V_FixSlashes( pTmpFileName );
 				m_AddonFileSystem.FindFirst( pTmpFileName, pFindData->m_AddonSystemFiles, nullptr );
 			}
@@ -3969,7 +4095,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 
 			// Otherwise, raw FS find for relative path
 			char pTmpFileName[ MAX_FILEPATH ];
-			V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
 			V_FixSlashes( pTmpFileName );
 			pFindData->findHandle = FS_FindFirstFile( pTmpFileName, &pFindData->findData );
 			pFindData->m_CurrentStoreID = pSearchPath->m_storeId;
@@ -4113,7 +4239,7 @@ bool CBaseFileSystem::FindNextFileHelper( FindData_t *pFindData, int *pFoundStor
 #endif
 
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
 		V_FixSlashes( pTmpFileName );
 		pFindData->findHandle = FS_FindFirstFile( pTmpFileName, &pFindData->findData );
 		pFindData->m_CurrentStoreID = pSearchPath->m_storeId;
@@ -4311,6 +4437,9 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 	FixUpPath( pFileName, szLowercaseFilename );
 	pFileName = szLowercaseFilename;
 
+	// RaphaelIT7: Just to avoid weird issues
+	NormalizeGamePath( szLowercaseFilename );
+
 	// Fill in the default in case it's not found...
 	V_strncpy( pDest, pFileName, maxLenInChars );
 
@@ -4408,7 +4537,7 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 #endif
 
 		char pTmpFileName[ MAX_FILEPATH ];
-		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
+		ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
 
 		// GMod
@@ -4420,6 +4549,20 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 				V_strncpy( pDest, strFullFileName.c_str(), maxLenInChars );
 				return pDest;
 			}
+		}
+
+		// RaphaelIT7: We force lower for consistency!
+		V_strlower( pTmpFileName );
+		FileCacheEntry eCacheEntry = g_pBaseFileSystem->m_DiskFileTree.ContainsPath( pTmpFileName );
+
+		// RaphaelIT7: We check == INVALID since FS_stat works on both file and folder so we must allow both!
+		if ( eCacheEntry == FileCacheEntry::INVALID )
+		{
+			// RaphaelIT7: Debugging
+			//if ( FS_stat( pTmpFileName, &buf ) != -1 )
+			//	__debugbreak();
+
+			continue;
 		}
 
 		if ( FS_stat( pTmpFileName, &buf ) != -1 )
@@ -4589,6 +4732,12 @@ bool CBaseFileSystem::RenameFile( char const *pOldPath, char const *pNewPath, co
 		V_strcpy_safe( pNewFileName, pNewPath );
 	}
 
+	// RaphaelIT7: We force lower for consistency!
+	V_strlower( pNewFileName );
+	NormalizeGamePath( pNewFileName );
+	V_strlower( szScratchFileName );
+	NormalizeGamePath( szScratchFileName );
+
 	// Make sure the directory exitsts, too
 	char pPathOnly[ MAX_PATH ];
 	V_strcpy_safe( pPathOnly, pNewFileName );
@@ -4603,6 +4752,8 @@ bool CBaseFileSystem::RenameFile( char const *pOldPath, char const *pNewPath, co
 			pNewFileName,
 			std::generic_category().message(errno).c_str() );
 		return false;
+	} else {
+		g_pBaseFileSystem->m_DiskFileTree.RenamePath( szScratchFileName, pNewFileName );
 	}
 
 	return true;
@@ -4786,6 +4937,7 @@ CBaseFileSystem::CSearchPath::CSearchPath( void )
 	m_pPackedStore = nullptr;
 	m_bIsTrustedForPureServer = false;
 	m_bIsWorkshop = false;
+	m_bTrackDisk = false;
 }
 
 const char *CBaseFileSystem::CSearchPath::GetDebugString() const
@@ -4808,6 +4960,23 @@ bool CBaseFileSystem::CSearchPath::IsMapPath() const
 	return GetPackFile()->m_bIsMapPath;
 }
 
+CBaseFileSystem::FileCacheEntry CBaseFileSystem::CSearchPath::ContainsPath( const char *pszRelativePath ) const
+{
+	char szFullPath[MAX_PATH];
+	V_ComposeFileName( GetPathString(), pszRelativePath, szFullPath, sizeof( szFullPath ) );
+	V_strlower( szFullPath );
+
+	return g_pBaseFileSystem->m_DiskFileTree.ContainsPath( szFullPath );
+}
+
+void CBaseFileSystem::CSearchPath::SetupFileList()
+{
+	// RaphaelIT7:
+	// We implement search manually as using FindFirst & that stuff is like asking for pain and performance issues
+	if ( V_IsAbsolutePath( GetPathString() ) )
+		g_pBaseFileSystem->m_DiskFileTree.BuildTree( GetPathString() );
+}
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -4828,10 +4997,9 @@ CBaseFileSystem::CSearchPath::~CSearchPath()
 //-----------------------------------------------------------------------------
 CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetFirst()
 {
-	if ( m_SearchPaths.Count() )
+	if ( g_pBaseFileSystem->m_SearchPaths.Count() )
 	{
-		m_visits.Reset();
-		m_iCurrent = m_SearchPaths.InvalidIndex();
+		m_iCurrent = g_pBaseFileSystem->m_SearchPaths.InvalidIndex();
 		return GetNext();
 	}
 	return &m_EmptySearchPath;
@@ -4843,12 +5011,12 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetFirst()
 //-----------------------------------------------------------------------------
 CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetNext()
 {
-	CSearchPath *pSearchPath = nullptr;
+	CUtlLinkedList<CSearchPath> &searchPaths = g_pBaseFileSystem->m_SearchPaths;
 
-	m_iCurrent = ( m_iCurrent == m_SearchPaths.InvalidIndex() ) ? m_SearchPaths.Head() : m_SearchPaths.Next( m_iCurrent );
-	for ( ; m_iCurrent != m_SearchPaths.InvalidIndex(); m_iCurrent = m_SearchPaths.Next( m_iCurrent ) )
+	m_iCurrent = ( m_iCurrent == searchPaths.InvalidIndex() ) ? searchPaths.Head() : searchPaths.Next( m_iCurrent );
+	for ( ; m_iCurrent != searchPaths.InvalidIndex(); m_iCurrent = searchPaths.Next( m_iCurrent ) )
 	{
-		pSearchPath = &m_SearchPaths[m_iCurrent];
+		CSearchPath *pSearchPath = &searchPaths[m_iCurrent];
 
 		if ( m_PathTypeFilter == FILTER_CULLPACK && pSearchPath->GetPackFile() )
 			continue;
@@ -4859,35 +5027,10 @@ CBaseFileSystem::CSearchPath *CBaseFileSystem::CSearchPathsIterator::GetNext()
 		if ( CBaseFileSystem::FilterByPathID( pSearchPath, m_pathID ) )
 			continue;
 
-		if ( !m_visits.MarkVisit( *pSearchPath ) )
-			break;
-	}
-
-	if ( m_iCurrent != m_SearchPaths.InvalidIndex() )
-	{
 		return pSearchPath;
 	}
 
 	return nullptr;
-}
-
-void CBaseFileSystem::CSearchPathsIterator::CopySearchPaths( const CUtlLinkedList<CSearchPath>	&searchPaths )
-{
-	m_SearchPaths.RemoveAll();
-	for ( auto i = searchPaths.Head(); i != searchPaths.InvalidIndex(); i = searchPaths.Next( i ) )
-		m_SearchPaths.AddToTail( searchPaths[i] );
-
-	for ( auto &sp : m_SearchPaths )
-	{
-		if ( sp.GetPackFile() )
-		{
-			sp.GetPackFile()->AddRef();
-		}
-		else if ( sp.GetPackedStore() )
-		{
-			sp.GetPackedStore()->AddRef();
-		}
-	}
 }
 
 //-----------------------------------------------------------------------------
@@ -4924,7 +5067,7 @@ CSysModule *CBaseFileSystem::LoadModule( const char *pFileName, const char *pPat
 		if ( FilterByPathID( &sp, lookup ) )
 			continue;
 
-		V_sprintf_safe( tempPathID, "%s%s", sp.GetPathString(), pFileName ); // append the path to this dir.
+		ComposeSearchPath( tempPathID, sizeof( tempPathID ), sp.GetPathString(), pFileName ); // append the path to this dir.
 		CSysModule *pModule = Sys_LoadModule( tempPathID );
 		if ( pModule ) 
 		{
@@ -5724,6 +5867,7 @@ CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 
 	const bool bVPKHack = (addType >> 8) & 1;
 	const bool bIsWorkshop = (addType & PATH_FLAG_ISWORKSHOP) != 0;
+	const bool bTrackDisk = (addType & PATH_FLAG_TRACKFS) != 0;
 	// RaphaelIT7:
 	// We changed PATH_PRIORITY_MASK to 0xFE & made this a whitelist instead
 	// The old approach of ignoring bit 8 failed when we added new flags, so instead we now only select bits 1-7 for priorityGroup
@@ -5757,6 +5901,14 @@ CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 
 	if ( !result )
 		result = &m_SearchPaths[ m_SearchPaths.AddToTail() ];
+
+	// RaphaelIT7:
+	// We can later add PATH_FLAG_TRACKFS though this will do for now
+	// (No one should modify anything else in garrysmod/ anyways?)
+	// DATA is marked manually since it's mixed in GMODCORE
+	// & we also track DOWNLOADS since someone may after a failed download manually remove a file!
+	if ( bTrackDisk || priorityGroup == GN_LUA || priorityGroup == GN_DOWNLOADS || priorityGroup == GN_ADDONCONTENT || priorityGroup == GN_BADDONCONTENT )
+		SetupDiskTracking( result );
 
 	result->m_PriorityGroupID = priorityGroup;
 	result->m_bVPKHack = bVPKHack;
@@ -5999,7 +6151,7 @@ void CBaseFileSystem::GMOD_SetupDefaultPaths( const char *pszGamePath, const cha
 	AddSearchPath( pszModPath, "GAME", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
 	AddSearchPath( pszModPath, "GAME_WRITE", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
 	AddSearchPath( pszModPath, "garrysmod", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
-	AddSearchPath( ( m_strModPath + "/data" ).c_str(), "DATA", PRIORITY_GROUP_TAIL( GN_GMODCORE ) );
+	AddSearchPath( ( m_strModPath + "/data" ).c_str(), "DATA", PRIORITY_GROUP_TAIL( GN_GMODCORE ) | PATH_FLAG_TRACKFS );
 
 	MarkPathIDByRequestOnly( "workshop", true );
 	MarkPathIDByRequestOnly( "thirdparty", true );
@@ -6074,4 +6226,111 @@ void CBaseFileSystem::GMOD_FixPathCase( char *pszPath, size_t nPathLength )
 	// This one must be done- though I got no idea as I can't find it in IDA
 	// We could try to use NormalizeGamePath here
 #endif
+}
+
+void CBaseFileSystem::SetupDiskTracking( CSearchPath *pSearchPath )
+{
+	pSearchPath->MarkDiskTracking();
+
+	// ToDo: Create file watcher
+	// or port over from REngine though needs to be changed
+}
+
+void CBaseFileSystem::CDiskFileTree::BuildTree( const char *pszRoot )
+{
+	if ( V_IsAbsolutePath( pszRoot ) )
+	{
+		char szFullPath[MAX_PATH];
+		V_strncpy( szFullPath, pszRoot, sizeof( szFullPath ) );
+		V_FixSlashes( szFullPath, '/' );
+		// RaphaelIT7:
+		// Somehow... we can have some of those.
+		// No we cannot use NormalizeGamePath as the resulting path is wrong... somehow
+		V_RemoveDotSlashes( szFullPath );
+		V_StripTrailingSlash( szFullPath );
+		V_strlower( szFullPath );
+
+		RecursiveTraverse( pszRoot );
+	}
+}
+
+CBaseFileSystem::FileCacheEntry CBaseFileSystem::CDiskFileTree::ContainsPath( const char *pszAbsolutePath ) const
+{
+	if ( !fs_usecache.GetBool() )
+		return CBaseFileSystem::FileCacheEntry::UNKNOWN;
+
+	auto it = m_FileList.find( pszAbsolutePath );
+	if ( it != m_FileList.end() )
+		return it->second;
+
+	// RaphaelIT7: BUG! If we print anything we crash due to a stackoverflow in tier0? Something with output!
+	//Msg( "Failed to find %s\n", pszAbsolutePath );
+	return CBaseFileSystem::FileCacheEntry::INVALID;
+}
+
+// RaphaelIT7 (ToDo): We need a shared mutex!
+void CBaseFileSystem::CDiskFileTree::AddPath( const char *pszAbsolutePath, FileCacheEntry type )
+{
+	auto it = m_FileList.find( pszAbsolutePath );
+	if ( it == m_FileList.end() )
+		m_FileList[pszAbsolutePath] = type;
+}
+
+void CBaseFileSystem::CDiskFileTree::RemovePath( const char *pszAbsolutePath )
+{
+	auto it = m_FileList.find( pszAbsolutePath );
+	if ( it != m_FileList.end() )
+		m_FileList.erase( it );
+}
+
+void CBaseFileSystem::CDiskFileTree::RenamePath( const char *pszOldAbsolutePath, const char *pszNewAbsolutePath )
+{
+	auto it = m_FileList.find( pszOldAbsolutePath );
+	if ( it == m_FileList.end() )
+		return; // Lies! ToDo: How should we handle this?
+
+	m_FileList[ pszNewAbsolutePath ] = it->second;
+	m_FileList.erase( it );
+}
+
+// RaphaelIT7:
+// This is expensive! A trade of startup time vs runtime performance
+// ToDo: Check out if we can improve memory usage
+void CBaseFileSystem::CDiskFileTree::RecursiveTraverse( const char *pszFolderPath )
+{
+	// If we have a entry then we already are tracking this one
+	if ( m_FileList.find( pszFolderPath ) != m_FileList.end() )
+		return;
+
+	char szSearchPath[MAX_PATH];
+	V_snprintf( szSearchPath, sizeof( szSearchPath ), "%s/*", pszFolderPath );
+
+	WIN32_FIND_DATA findData;
+	HANDLE hFind = g_pBaseFileSystem->FS_FindFirstFile( szSearchPath, &findData );
+	if ( hFind == INVALID_HANDLE_VALUE )
+		return;
+
+	do
+	{
+		if ( !V_stricmp( findData.cFileName, "." ) || !V_stricmp( findData.cFileName, ".." ) )
+			continue;
+
+		char szFullPath[MAX_PATH];
+		V_snprintf( szFullPath, sizeof( szFullPath ), "%s" CORRECT_PATH_SEPARATOR_S "%s", pszFolderPath, findData.cFileName );
+		V_FixSlashes( szFullPath, '/' );
+		// RaphaelIT7:
+		// Somehow... we can have some of those.
+		// No we cannot use NormalizeGamePath as the resulting path is wrong... somehow
+		V_RemoveDotSlashes( szFullPath );
+		V_StripTrailingSlash( szFullPath );
+		V_strlower( szFullPath );
+
+		const bool bDirectory = ( findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) != 0;
+		if ( bDirectory )
+			RecursiveTraverse( szFullPath );
+
+		m_FileList.emplace( szFullPath, bDirectory ? FileCacheEntry::FOLDER : FileCacheEntry::FILE );
+	} while ( g_pBaseFileSystem->FS_FindNextFile( hFind, &findData ) );
+
+	g_pBaseFileSystem->FS_FindClose( hFind );
 }
