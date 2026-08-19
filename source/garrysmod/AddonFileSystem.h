@@ -88,6 +88,9 @@ public: // FileSystem
 	void SendUGCListUpdate();
 	bool UnmountFile( std::string strFileName, const char *pszReason );
 	bool MountAddon( IAddonSystem::Information &info );
+	std::string ResolveFile( std::string strRelativeFileName );
+	int64_t GetFileSize( std::string strRelativeFileName );
+	std::string ModPath() { return m_strModPath; };
 
 	FileInfo *GetFile( std::string strFileName );
 	FileHandle *GetFileEntry( std::string strFileName );

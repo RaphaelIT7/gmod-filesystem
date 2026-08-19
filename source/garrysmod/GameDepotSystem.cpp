@@ -177,7 +177,7 @@ void GameDepot::System::MountAsFallback( Information &info )
 	std::string path = get->GameDir();
 	path += "\\sourceengine\\";
 	path += "content_";
-	path += info.title.c_str();
+	path += info.folder.c_str();
 	path += ".vpk";
 
 	g_pFullFileSystem->AddSearchPath( path.c_str(), "GAME", PRIORITY_GROUP_TAIL( GN_GAMECONTENT ) );

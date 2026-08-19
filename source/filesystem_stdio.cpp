@@ -738,6 +738,9 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 	}
 
 	FILE *pFile = fopen( filename, options );
+	// RaphaelIT7: Useful for debugging
+	//if ( !pFile )
+	//	Msg( "fopen failed: errno=%d (%s)\n", errno, strerror( errno ) );
 
 #ifdef LINUX
 	// Try opening the lower cased version.

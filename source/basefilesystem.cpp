@@ -384,6 +384,9 @@ InitReturnVal_t CBaseFileSystem::Init()
 
 void CBaseFileSystem::Shutdown()
 {
+	// GMod
+	m_AddonFileSystem.Shutdown();
+
 	ShutdownAsync();
 	m_FileTracker2.ShutdownAsync();
 
@@ -1021,6 +1024,15 @@ void CBaseFileSystem::RemoveAllMapSearchPaths( void )
 //-----------------------------------------------------------------------------
 void CBaseFileSystem::AddMapPackFile( const char *pPath, const char *pPathID, SearchPathAdd_t addType )
 {
+	// RaphaelIT7:
+	// BUG! Even if we already added a .bsp
+	// GMod calls twice for some reason!
+	// So we return as else if we hit RemoveAllMapSearchPaths, we will remove the SearchPath
+	// And the WriteFile for a new map_pack.bsp fails since BeginMapAccess() was already called
+	// Causing the CZipPackFile to have a refCount of 2 and therefore not closing the filehandle, blocking the WriteFile call!
+	if ( m_iMapLoad > 0 )
+		return;
+
 	char tempPathID[MAX_PATH];
 	ParsePathID( pPath, pPathID, tempPathID );
 
@@ -1100,18 +1112,19 @@ void CBaseFileSystem::AddMapPackFile( const char *pPath, const char *pPathID, Se
 			// Though of course I don't know the real background for it
 			// But if it's confirmed to just be a workaround for it- I am sure we can improve this and get rid of the write entirely
 			CUtlBuffer mapContents;
-			if ( ReadFile( fullpath, "rb", mapContents, 0, 0 ) )
-			{
-				Msg( "Extracting BSP to cache/map_pack.bsp in order to mount BSP embedded content...\n" );
-				if ( WriteFile( "cache/map_pack.bsp", "MOD_WRITE", mapContents ) )
-					AddMapPackFile( "cache/map_pack.bsp", pPathID, addType );
-				else
-					::Warning( "Couldn't write cache/map_pack.bsp to mount embedded content!\n" );
-			} else {
-				// Couldn't open it
+			if ( !ReadFile( fullpath, "GAME", mapContents, 0, 0 ) )
+			{ // Couldn't open it
 				Warning( FILESYSTEM_WARNING, "Couldn't open .bsp %s for embedded pack file check.\n", fullpath );
 				return;
 			}
+
+			Msg( "Extracting BSP to cache/map_pack.bsp in order to mount BSP embedded content...\n" );
+			if ( WriteFile( "cache/map_pack.bsp", "MOD_WRITE", mapContents ) )
+				AddMapPackFile( "cache/map_pack.bsp", pPathID, addType );
+			else
+				::Warning( "Couldn't write cache/map_pack.bsp to mount embedded content!\n" );
+
+			return;
 		}
 
 		// RaphaelIT7:
@@ -2697,6 +2710,13 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 			return buf.st_mtime;
 		}
 #endif
+
+		// GMod
+		{
+			int64 iSize = m_AddonFileSystem.GetFileSize( pTmpFileName );
+			if ( iSize >= 0 )
+				return 1L;
+		}
 	}
 
 	return ( 0L );
@@ -3900,6 +3920,19 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 			if( pFindData->findHandle != INVALID_HANDLE_VALUE )
 				break;
 		}
+
+		// GMod
+		// RaphaelIT7: Since the above code may break out when having found something, we must iterate down here too!
+		FOR_EACH_LL_( m_SearchPaths, pSearchPath )
+		{
+			if ( FilterByPathID( pSearchPath, pFindData->m_FilterPathID ) )
+				continue;
+
+			char pTmpFileName[ MAX_FILEPATH ];
+			ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+			V_FixSlashes( pTmpFileName );
+			m_AddonFileSystem.FindFirst( pTmpFileName, pFindData->m_AddonSystemFiles, nullptr );
+		}
 	}
 
 	// GMod
@@ -3926,7 +3959,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 		Addon::SearchFile &file = pFindData->m_AddonSystemFiles.front();
 
 		const char *pszFileName = V_UnqualifiedFileName( file.m_strFileName.c_str() );
-		V_strncpy( pFindData->findData.cFileName, pszFileName, sizeof( pFindData->findData.cFileName ) );
+		V_strcpy_safe( pFindData->findData.cFileName, pszFileName );
 		pFindData->findData.dwFileAttributes = file.m_bFolder ? FILE_ATTRIBUTE_DIRECTORY : 0;
 
 		pFindData->m_VisitedFiles.Insert( pFindData->findData.cFileName, 0 );
@@ -4067,10 +4100,9 @@ bool CBaseFileSystem::FindNextFileInVPKOrPakHelper( FindData_t *pFindData )
 		Addon::SearchFile &file = pFindData->m_AddonSystemFiles.front();
 
 		const char *pszFileName = V_UnqualifiedFileName( file.m_strFileName.c_str() );
-		V_strncpy( pFindData->findData.cFileName, pszFileName, sizeof( pFindData->findData.cFileName ) );
+		V_strcpy_safe( pFindData->findData.cFileName, pszFileName );
 		pFindData->findData.dwFileAttributes = file.m_bFolder ? FILE_ATTRIBUTE_DIRECTORY : 0;
 
-		pFindData->m_VisitedFiles.Insert( pFindData->findData.cFileName, 0 );
 		pFindData->m_AddonSystemFiles.pop_front();
 		return true; 
 	}
@@ -4318,6 +4350,17 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 		char pTmpFileName[ MAX_FILEPATH ];
 		V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFileName );
 		V_FixSlashes( pTmpFileName );
+
+		// GMod
+		{
+			std::string strFullFileName = m_AddonFileSystem.ResolveFile( pTmpFileName );
+			if ( !strFullFileName.empty() )
+			{
+				V_strncpy( pDest, strFullFileName.c_str(), maxLenInChars );
+				return pDest;
+			}
+		}
+
 		if ( FS_stat( pTmpFileName, &buf ) != -1 )
 		{
 			V_strncpy( pDest, pTmpFileName, maxLenInChars );
@@ -5206,6 +5249,12 @@ int CFileHandle::GetSectorSize()
 
 bool CFileHandle::IsOK()
 {
+	// GMod
+	if ( m_pAddonFileHandle )
+	{
+		return true;
+	}
+
 #if defined( SUPPORT_PACKED_STORE )
 	if ( m_VPKHandle )
 	{
@@ -5653,6 +5702,7 @@ void CBaseFileSystem::RemoveSearchPathsByGroup( int iPriorityGroup )
 	AsyncFinishAll();
 
 	iPriorityGroup >>= 1; // RaphaelIT7: IDA shows if (iPriorityGroup >> 1 == pSearchPath->m_PriorityGroupID)
+	Msg( "CBaseFileSystem::RemoveSearchPathsByGroup - %s\n", GMOD_GetSearchPathGroupName( iPriorityGroup ) );
 	for( int i=m_SearchPaths.Head(); i != m_SearchPaths.InvalidIndex(); )
 	{
 		int next = m_SearchPaths.Next( i );
@@ -5953,6 +6003,8 @@ void CBaseFileSystem::GMOD_FixPathCase( char *pszPath, size_t nPathLength )
 	if ( stat( pszPath, &st ) == -1 && findFileInDirCaseInsensitive( pszPath, szFixedPath, sizeof( szFixedPath ) ) )
 		V_strncpy( pszPath, szFixedPath, nPathLength );
 #else
-	// RaphaelIT7 (ToDo): This one must be done- though I got no idea as I can't find it in IDA
+	// RaphaelIT7 (ToDo):
+	// This one must be done- though I got no idea as I can't find it in IDA
+	// We could try to use NormalizeGamePath here
 #endif
 }

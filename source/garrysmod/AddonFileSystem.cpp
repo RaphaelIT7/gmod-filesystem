@@ -482,6 +482,30 @@ bool Addon::FileSystem::MountAddon( IAddonSystem::Information &info )
 	return true;
 }
 
+std::string Addon::FileSystem::ResolveFile( std::string strRelativeFileName )
+{
+	FileInfo *pInfo = GetFile( strRelativeFileName );
+	if ( !pInfo )
+		return "";
+
+	return m_strModPath + pInfo->m_strFolderName + pInfo->m_strFileName;
+}
+
+int64_t Addon::FileSystem::GetFileSize(std::string strRelativeFileName)
+{
+	if ( fs_tellmeyoursecrets.GetBool() )
+		Msg( "Addon[GetFileSize]: [%s]\n", strRelativeFileName.c_str() );
+
+	FileInfo *pInfo = GetFile( strRelativeFileName );
+	if ( !pInfo )
+		return -1;
+
+	if ( fs_tellmeyoursecrets.GetInt() > 1 )
+		Msg( "Addon[GetFileSize]: Returning [%lli]\n", pInfo->m_nSize );
+
+	return pInfo->m_nSize;
+}
+
 // RaphaelIT7 (ToDo):
 // We are missing ALL the fs_tellmeyoursecrets prints... we don't even have the convar yet
 Addon::FileInfo *Addon::FileSystem::GetFile( std::string strFileName )
