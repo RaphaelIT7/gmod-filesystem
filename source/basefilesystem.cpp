@@ -5674,6 +5674,9 @@ CBaseFileSystem::CSearchPath* CBaseFileSystem::NewSearchPath( SearchPathAdd_t ad
 
 	const bool bVPKHack = (addType >> 8) & 1;
 	const bool bIsWorkshop = (addType & PATH_FLAG_ISWORKSHOP) != 0;
+	// RaphaelIT7:
+	// We changed PATH_PRIORITY_MASK to 0xFE & made this a whitelist instead
+	// The old approach of ignoring bit 8 failed when we added new flags, so instead we now only select bits 1-7 for priorityGroup
 	CPathPriorityGroup_t priorityGroup = static_cast<CPathPriorityGroup_t>( ( addType & PATH_PRIORITY_MASK ) >> 1 );
 	if ( priorityGroup == GN_UNSET )
 		priorityGroup = GN_ENGINECORE;
