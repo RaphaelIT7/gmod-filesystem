@@ -3902,6 +3902,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 			}
 #endif
 			// GMod
+			if ( pSearchPath->m_bIsWorkshop )
 			{
 				char pTmpFileName[ MAX_FILEPATH ];
 				V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
