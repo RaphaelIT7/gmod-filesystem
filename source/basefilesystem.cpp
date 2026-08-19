@@ -4076,7 +4076,7 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 			if ( pSearchPath->m_bIsWorkshop )
 			{
 				char pTmpFileName[ MAX_FILEPATH ];
-				V_sprintf_safe( pTmpFileName, "%s%s", pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
+				ComposeSearchPath( pTmpFileName, sizeof( pTmpFileName ), pSearchPath->GetPathString(), pFindData->wildCardString.Base() );
 				V_FixSlashes( pTmpFileName );
 				m_AddonFileSystem.FindFirst( pTmpFileName, pFindData->m_AddonSystemFiles, nullptr );
 			}
