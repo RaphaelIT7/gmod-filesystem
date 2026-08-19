@@ -117,6 +117,30 @@ static void LogFileOpen( const char *vpk, const char *pFilename, const char *pAb
 }
 
 
+// RaphaelIT7:
+// Hack! When comparing openInfo.m_AbsolutePath against m_AddonFileSystem.ModPath() we may differ in slashes!
+static bool PathStartsWith( const char *pszPath, const char *pszPrefix )
+{
+	if ( !pszPath || !pszPrefix )
+		return false;
+
+	while ( *pszPrefix )
+	{
+		char a = *pszPath++;
+		char b = *pszPrefix++;
+		if ( a == '\\' )
+			a = '/';
+
+		if ( b == '\\' )
+			b = '/';
+
+		if ( tolower( static_cast<unsigned char>( a ) ) != tolower( static_cast<unsigned char>( b ) ) )
+			return false;
+	}
+
+	return true;
+}
+
 static CBaseFileSystem *g_pBaseFileSystem;
 CBaseFileSystem *BaseFileSystem()
 {
@@ -1433,6 +1457,16 @@ void CBaseFileSystem::AddSearchPathInternal( const char *pPath, const char *path
 		Assert( nIndex >= 0 );
 	}
 
+	// GMod
+	// RaphaelIT7:
+	// This is due to our optimization, let's check if this SearchPath is another workshop/
+	// An example would be workshop/lua/
+	if ( !m_AddonFileSystem.ModPath().empty() ) // We check for empty as it may have not been set early on!
+	{
+		if ( PathStartsWith( newPath, m_AddonFileSystem.ModPath().c_str() ) )
+			addType |= PATH_FLAG_ISWORKSHOP;
+	}
+
 	// GMOD
 	CSearchPath *sp = NewSearchPath( addType );
 	
@@ -2136,8 +2170,14 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 {
 	openInfo.m_pFileHandle = nullptr;
 
+	// RaphaelIT7:
+	// When mounting the map_pack.bsp we may try when reading it the absolute path! So we must lookup in workshop
+	bool bIsWorkshop = false;
+	if ( bIsAbsolutePath && !m_AddonFileSystem.ModPath().empty() ) // We check for empty as it may have not been set early on!
+		bIsWorkshop = PathStartsWith( openInfo.m_AbsolutePath, m_AddonFileSystem.ModPath().c_str() );
+
 	// GMod
-	if ( openInfo.m_pSearchPath && openInfo.m_pSearchPath->m_bIsWorkshop )
+	if ( openInfo.m_pSearchPath && openInfo.m_pSearchPath->m_bIsWorkshop || bIsWorkshop )
 	{
 		Addon::FileHandle *pHandle = m_AddonFileSystem.GetFileEntry( openInfo.m_AbsolutePath );
 		if ( pHandle )
@@ -2718,6 +2758,7 @@ time_t CBaseFileSystem::FastFileTime( const CSearchPath *path, const char *pFile
 #endif
 
 		// GMod
+		if ( path->m_bIsWorkshop )
 		{
 			int64 iSize = m_AddonFileSystem.GetFileSize( pTmpFileName );
 			if ( iSize >= 0 )
@@ -3937,6 +3978,9 @@ const char *CBaseFileSystem::FindFirstHelper( const char *pWildCardT, const char
 		// RaphaelIT7: Since the above code may break out when having found something, we must iterate down here too!
 		FOR_EACH_LL_( m_SearchPaths, pSearchPath )
 		{
+			if ( !pSearchPath->m_bIsWorkshop )
+				continue;
+
 			if ( FilterByPathID( pSearchPath, pFindData->m_FilterPathID ) )
 				continue;
 
@@ -4364,6 +4408,7 @@ const char *CBaseFileSystem::RelativePathToFullPath( const char *pFileName, cons
 		V_FixSlashes( pTmpFileName );
 
 		// GMod
+		if ( pSearchPath->m_bIsWorkshop )
 		{
 			std::string strFullFileName = m_AddonFileSystem.ResolveFile( pTmpFileName );
 			if ( !strFullFileName.empty() )
