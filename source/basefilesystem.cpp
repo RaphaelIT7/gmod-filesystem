@@ -2247,12 +2247,19 @@ void CBaseFileSystem::HandleOpenRegularFile( CFileOpenInfo &openInfo, bool bIsAb
 		return;
 	}
 
-	FileCacheEntry eCacheEntry = g_pBaseFileSystem->m_DiskFileTree.ContainsPath( openInfo.m_AbsolutePath );
+	// RaphaelIT7:
+	// We do not use the cache for absolute paths!
+	// Absolute paths are used by GMod for example when mounting a gma
+	// The path will be somewhere in the steamapps/workshop/4000 which we did not scan (and never will)
+	if ( !bIsAbsolutePath )
+	{
+		FileCacheEntry eCacheEntry = g_pBaseFileSystem->m_DiskFileTree.ContainsPath( openInfo.m_AbsolutePath );
 
-	// openInfo.m_pFileName is a mess due to \\..\\ not yet being normalized!
-	// eCacheEntry = openInfo.m_pSearchPath->ContainsPath( openInfo.m_pFileName );
-	if ( eCacheEntry != FileCacheEntry::FILE && eCacheEntry != FileCacheEntry::UNKNOWN )
-		return;
+		// openInfo.m_pFileName is a mess due to \\..\\ not yet being normalized!
+		// eCacheEntry = openInfo.m_pSearchPath->ContainsPath( openInfo.m_pFileName );
+		if ( eCacheEntry != FileCacheEntry::FILE && eCacheEntry != FileCacheEntry::UNKNOWN )
+			return;
+	}
 
 	int64 size;
 	FILE *fp = Trace_FOpen( openInfo.m_AbsolutePath, openInfo.m_pOptions, openInfo.m_Flags, &size );
