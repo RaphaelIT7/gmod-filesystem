@@ -6225,6 +6225,7 @@ void CBaseFileSystem::GMOD_FixPathCase( char *pszPath, size_t nPathLength )
 	// RaphaelIT7 (ToDo):
 	// This one must be done- though I got no idea as I can't find it in IDA
 	// We could try to use NormalizeGamePath here
+	NormalizeGamePath(pszPath);
 #endif
 }
 
