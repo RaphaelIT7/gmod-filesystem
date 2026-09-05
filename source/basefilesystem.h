@@ -72,6 +72,7 @@
 #include "garrysmod/GamemodeSystem.h"
 #include "garrysmod/AddonFileSystem.h"
 #include <string>
+#include "unordered_stuff.h"
 
 #include "tier0/memdbgon.h"
 
@@ -86,8 +87,11 @@
 
 // GMod
 extern ConVar fs_tellmeyoursecrets;
+extern ConVar fs_usecache;
 // RaphaelIT7: A special flag to mark the workshop/ path
 #define PATH_FLAG_ISWORKSHOP (1<<9)
+// RaphaelIT7: When set then the searchpath will be tracked for disk changes!
+#define PATH_FLAG_TRACKFS (1<<10)
 
 extern CUtlSymbolTableMT g_PathIDTable;
 
@@ -501,6 +505,35 @@ public:
 	// IMPLEMENTATION DETAILS FOR CBaseFileSystem //
 	////////////////////////////////////////////////
 
+	enum class FileCacheEntry : unsigned char
+	{
+		UNKNOWN = 255, // if returned then check disk? (Exists just as a fallback for now)
+		INVALID = 0, // Does not exist
+		FILE,
+		FOLDER,
+	};
+
+	// RaphaelIT7:
+	// For GMod's scale this will be a lot more complex than REngine...
+	// Fun :)
+	class CSearchPath;
+	class CDiskFileTree : public CRefCounted<CRefCountServiceMT>
+	{
+	public:
+		void BuildTree( const char *pszRoot );
+		FileCacheEntry ContainsPath( const char *pszAbsolutePath ) const;
+
+		void AddPath( const char *pszAbsolutePath, FileCacheEntry type );
+		void RemovePath( const char *pszAbsolutePath );
+		void RenamePath( const char *pszOldAbsolutePath, const char *pszNewAbsolutePath );
+
+	private:
+		void RecursiveTraverse( const char *pszFolderPath );
+
+		// We use StringHash & StringEq so that when searching we do not allocate an std::string
+		unordered_map<std::string, FileCacheEntry, StringHash, StringEq> m_FileList;
+	};
+
 	class CSearchPath
 	{
 	public:
@@ -527,6 +560,11 @@ public:
 		CPackedStoreRefCount *GetPackedStore() const { return m_pPackedStore; }
 
 		bool IsMapPath() const;
+
+		FileCacheEntry ContainsPath( const char *pszRelativePath ) const;
+		inline void MarkDiskTracking() { m_bTrackDisk = true; }
+		// Called once all values are set since inside NewSearchPath we got nothing to work with
+		void SetupFileList();
 
 		int					m_storeId;
 
@@ -557,10 +595,17 @@ public:
 		bool				m_bIsWorkshop;
 
 	private:
-		CUtlSymbol			m_Path;
 		const char			*m_pDebugPath;
 		CPackFile			*m_pPackFile;
 		CPackedStoreRefCount *m_pPackedStore;
+		CUtlSymbol			m_Path;
+
+		// RaphaelIT7:
+		// Lets try to apply the same Idea that REngine uses
+
+		// If true then we setup a file watcher to update on disk changes
+		// Else we expect the folder to never change anyways
+		bool				m_bTrackDisk;
 	};
 
 	class CSearchPathsVisits
@@ -586,6 +631,12 @@ public:
 		CUtlVector<int> m_Visits;	// This is a copy of IDs for the search paths we've visited, so 
 	};
 
+	// RaphaelIT7:
+	// We dropped m_SearchPaths, m_visits and CopySearchPaths()
+	// Since it's a waste to copy and allocate those!
+	// When opening a file / working with the iterator, nothing should be modifying m_SearchPaths anyways!
+	// And we never visit a duplicate anyways, so we can safely get rid of m_visits
+	// Optional: We could make it hold a readonly lock of m_SearchPathsMutex (after making m_SearchPathsMutex a CThreadRWLock/CThreadSpinRWLock)
 	class CSearchPathsIterator
 	{
 	public:
@@ -612,12 +663,6 @@ public:
 
 			if ( *ppszFilename && !Q_IsAbsolutePath( *ppszFilename ) )
 			{
-				{
-					// Copy paths to minimize mutex lock time
-					AUTO_LOCK( pFileSystem->m_SearchPathsMutex );
-					CopySearchPaths( pFileSystem->m_SearchPaths );
-				}
-
 				pFileSystem->FixUpPath ( *ppszFilename, m_Filename );
 			}
 			else
@@ -644,12 +689,6 @@ public:
 				m_pathID =  UTL_INVAL_SYMBOL;
 			}
 
-			{
-				// Copy paths to minimize mutex lock time
-				AUTO_LOCK( pFileSystem->m_SearchPathsMutex );
-				CopySearchPaths( pFileSystem->m_SearchPaths );
-			}
-
 			m_Filename[0] = '\0';
 		}
 
@@ -659,12 +698,9 @@ public:
 	private:
 		CSearchPathsIterator( const  CSearchPathsIterator & );
 		void operator=(const CSearchPathsIterator &);
-		void CopySearchPaths( const CUtlLinkedList<CSearchPath>	&searchPaths );
 
 		CUtlLinkedList<CSearchPath>::IndexLocalType_t	m_iCurrent;
 		CUtlSymbol					m_pathID;
-		CUtlLinkedList<CSearchPath> 	m_SearchPaths;
-		CSearchPathsVisits			m_visits;
 		CSearchPath					m_EmptySearchPath;
 		CPathIDInfo					m_EmptyPathIDInfo;
 		PathTypeFilter_t			m_PathTypeFilter;
@@ -746,7 +782,7 @@ protected:
 	virtual int FS_feof( FILE *fp ) = 0;
 	size_t FS_fread( OUT_BYTECAP(size) void *dest, size_t size, FILE *fp ) { return FS_fread( dest, (size_t)-1, size, fp ); }
 	virtual size_t FS_fread( OUT_BYTECAP(destSize) void *dest, size_t destSize, size_t size, FILE *fp ) = 0;
-    virtual size_t FS_fwrite( IN_BYTECAP(size) const void *src, size_t size, FILE *fp ) = 0;
+	virtual size_t FS_fwrite( IN_BYTECAP(size) const void *src, size_t size, FILE *fp ) = 0;
 	virtual bool FS_setmode( FILE *, FileMode_t ) { return false; }
 	virtual size_t FS_vfprintf( FILE *fp, const char *fmt, va_list list ) = 0;
 	virtual int FS_ferror( FILE *fp ) = 0;
@@ -923,6 +959,9 @@ public: // GMOD
 	virtual void GMOD_SetupDefaultPaths( const char *pszGamePath, const char *pszModPath );
 	virtual void GMOD_FixPathCase( char *, size_t = 0);
 
+	// RaphaelIT7: Called when a searchpath should watch for any disk changes
+	void SetupDiskTracking( CSearchPath *pSearchPath );
+
 private: // GMOD
 	CLanguage m_Language;
 	GameDepot::System m_GameDepotSystem;
@@ -933,6 +972,8 @@ private: // GMOD
 	int m_iRefreshCounter = 0;
 	std::string m_strGamePath = "";
 	std::string m_strModPath = "";
+
+	CDiskFileTree m_DiskFileTree;
 };
 
 inline const CUtlSymbol& CBaseFileSystem::CPathIDInfo::GetPathID() const
